@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { ParkingImage } from "@/components/ui/parking-image";
 
 export default function OwnerDashboardPage() {
   const [smartShareActive, setSmartShareActive] = React.useState(true);
@@ -268,7 +269,7 @@ export default function OwnerDashboardPage() {
           <div className="divide-y divide-[#F0F0F0] text-xs">
             <div className="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <img
+                <ParkingImage
                   src="https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=400&q=80"
                   alt="Garage space"
                   className="h-14 w-16 rounded-xl object-cover"
@@ -289,7 +290,7 @@ export default function OwnerDashboardPage() {
 
             <div className="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
-                <img
+                <ParkingImage
                   src="https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?auto=format&fit=crop&w=400&q=80"
                   alt="Driveway space"
                   className="h-14 w-16 rounded-xl object-cover"

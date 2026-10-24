@@ -25,6 +25,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
 import { ParkingSpace, VehicleType } from "@/types/parking";
+import { ParkingImage } from "@/components/ui/parking-image";
 
 interface ListingDetailClientProps {
   space: ParkingSpace;
@@ -151,7 +152,7 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
         {/* Airbnb-style Photo Gallery Grid */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3 rounded-3xl overflow-hidden mb-12 shadow-sm">
           <div className="md:col-span-2 relative aspect-4/3 md:aspect-auto h-72 md:h-96">
-            <img
+            <ParkingImage
               src={space.images[0]}
               alt={space.title}
               className="w-full h-full object-cover hover:scale-102 transition-transform duration-300 cursor-pointer"
@@ -160,7 +161,7 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
           <div className="hidden md:grid md:col-span-2 grid-cols-2 gap-3 h-96">
             {(space.images.length > 1 ? space.images.slice(1, 5) : [space.images[0], space.images[0]]).map((img, idx) => (
               <div key={idx} className="relative h-[186px] overflow-hidden">
-                <img
+                <ParkingImage
                   src={img}
                   alt={`Space view ${idx + 2}`}
                   className="w-full h-full object-cover hover:scale-105 transition-transform duration-300 cursor-pointer"
@@ -177,7 +178,7 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
             {/* Host overview badge */}
             <div className="flex items-center justify-between pb-8 border-b border-[#EAEAEA]">
               <div className="flex items-center gap-4">
-                <img
+                <ParkingImage
                   src={space.host.avatar}
                   alt={space.host.name}
                   className="h-14 w-14 rounded-full object-cover border-2 border-white shadow-md"

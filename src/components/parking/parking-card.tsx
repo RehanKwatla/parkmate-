@@ -18,6 +18,8 @@ import { ParkingSpace } from "@/types/parking";
 import { Badge } from "@/components/ui/badge";
 import { formatCurrency } from "@/lib/utils";
 
+import { ParkingImage } from "@/components/ui/parking-image";
+
 interface ParkingCardProps {
   space: ParkingSpace;
   userVehicleType?: string;
@@ -55,7 +57,7 @@ export function ParkingCard({ space }: ParkingCardProps) {
         {/* Image Container */}
         <div className="relative aspect-4/3 w-full overflow-hidden rounded-2xl bg-[#F0F0F0]">
           {/* Main Photo */}
-          <img
+          <ParkingImage
             src={images[currentImageIdx]}
             alt={space.title}
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-102"

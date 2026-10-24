@@ -5,6 +5,7 @@ import { ParkingSpace } from "@/types/parking";
 import { formatCurrency } from "@/lib/utils";
 import { Plus, Minus, Zap, X, Star } from "lucide-react";
 import Link from "next/link";
+import { ParkingImage } from "@/components/ui/parking-image";
 
 interface InteractiveMapProps {
   spaces: ParkingSpace[];
@@ -187,7 +188,7 @@ export function InteractiveMap({
           </div>
 
           <div className="flex gap-3">
-            <img
+            <ParkingImage
               src={activeSpace.images[0]}
               alt={activeSpace.title}
               className="h-20 w-20 rounded-xl object-cover shrink-0"

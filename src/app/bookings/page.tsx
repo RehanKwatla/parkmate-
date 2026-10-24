@@ -17,6 +17,7 @@ import { Booking, ParkingSpace } from "@/types/parking";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
+import { ParkingImage } from "@/components/ui/parking-image";
 
 export default function BookingsPage() {
   const [bookings, setBookings] = React.useState<Booking[]>(INITIAL_USER_BOOKINGS);
@@ -156,7 +157,7 @@ export default function BookingsPage() {
               >
                 {/* Left: Image & Info */}
                 <div className="flex items-start gap-4">
-                  <img
+                  <ParkingImage
                     src={booking.spaceImage}
                     alt={booking.spaceTitle}
                     className="h-24 w-28 rounded-2xl object-cover shrink-0"
@@ -358,7 +359,7 @@ export default function BookingsPage() {
             </div>
 
             <div className="border border-[#DDDDDD] rounded-2xl p-4 bg-white flex gap-3">
-              <img
+              <ParkingImage
                 src={recoveredSpace.images[0]}
                 alt={recoveredSpace.title}
                 className="h-20 w-20 rounded-xl object-cover shrink-0"
