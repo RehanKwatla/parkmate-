@@ -27,6 +27,7 @@ import { Dialog } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
 import { ParkingSpace, VehicleType } from "@/types/parking";
 import { ParkingImage } from "@/components/ui/parking-image";
+import { evaluateVehicleCompatibility, DEFAULT_SAFETY_MARGINS } from "@/lib/compatibility-engine";
 
 interface ListingDetailClientProps {
   space: ParkingSpace;
@@ -43,6 +44,14 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
   const [isBookingConfirmed, setIsBookingConfirmed] = React.useState(false);
   const [isSubmitting, setIsSubmitting] = React.useState(false);
   const [bookingError, setBookingError] = React.useState<string | null>(null);
+  const [testPaymentMethod, setTestPaymentMethod] = React.useState<"test_card_visa" | "simulate_failure">("test_card_visa");
+  const [arrivalDatetime, setArrivalDatetime] = React.useState<string>("");
+  const [confirmedBookingData, setConfirmedBookingData] = React.useState<{
+    bookingRef: string;
+    accessCode: string;
+    totalPrice: number;
+    instructions: string;
+  } | null>(null);
 
   // Pricing calculations
   const hourlySubtotal = space.pricePerHour * selectedDurationHours;
@@ -50,9 +59,12 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
   const taxes = Number((hourlySubtotal * 0.08).toFixed(2));
   const totalPrice = hourlySubtotal + serviceFee + taxes;
 
-  // Vehicle Compatibility Check
+  // Vehicle Compatibility Check via Compatibility Engine
   const testedPreset = VEHICLE_PRESETS.find((v) => v.id === testedVehicle) || VEHICLE_PRESETS[0];
-  const isCompatible = space.clearanceFeet >= testedPreset.heightFeet;
+  const compatibility = React.useMemo(() => {
+    return evaluateVehicleCompatibility(space, { vehicleType: testedVehicle }, DEFAULT_SAFETY_MARGINS);
+  }, [space, testedVehicle]);
+  const isCompatible = compatibility.isCompatible;
 
   // Check saved state on mount
   React.useEffect(() => {
@@ -97,9 +109,12 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
         body: JSON.stringify({
           spaceId: space.id,
           durationHours: selectedDurationHours,
+          startTime: arrivalDatetime ? new Date(arrivalDatetime).toISOString() : undefined,
           vehicleModel: `${testedPreset.name} (Registered)`,
           vehicleType: testedVehicle,
           licensePlate: "7XYZ899",
+          paymentMethod: testPaymentMethod,
+          simulateFailure: testPaymentMethod === "simulate_failure",
         }),
       });
 
@@ -111,11 +126,13 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
         return;
       }
 
+      setConfirmedBookingData({
+        bookingRef: data.booking.bookingReference,
+        accessCode: data.booking.accessCode,
+        totalPrice: data.booking.totalPrice,
+        instructions: data.accessDetails?.instructions || space.accessInstructions || "Digital Pass issued. Proceed to reserved bay.",
+      });
       setIsBookingConfirmed(true);
-      setTimeout(() => {
-        setIsBookingModalOpen(false);
-        router.push("/bookings");
-      }, 1800);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : "Network error reserving space.";
       setBookingError(message);
@@ -470,17 +487,28 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
                 </div>
               </div>
 
-              {/* Reserve Button */}
+              {/* Reserve Button with Compatibility Gate */}
               <Button
                 size="lg"
                 onClick={() => setIsBookingModalOpen(true)}
-                className="w-full rounded-2xl py-4 text-base font-bold shadow-lg shadow-[#FF5A5F]/20 hover:scale-[1.01] transition-transform"
+                disabled={!isCompatible}
+                className={`w-full rounded-2xl py-4 text-base font-bold shadow-lg transition-transform ${
+                  isCompatible
+                    ? "shadow-[#FF5A5F]/20 hover:scale-[1.01]"
+                    : "bg-neutral-300 text-neutral-600 cursor-not-allowed"
+                }`}
               >
-                Reserve Space Now
+                {isCompatible ? "Reserve Space Now" : "Incompatible Vehicle Clearance"}
               </Button>
 
+              {!isCompatible && (
+                <p className="text-[11px] text-center text-red-600 font-medium">
+                  {compatibility.reasons[0] || "Ceiling clearance too low for selected vehicle."}
+                </p>
+              )}
+
               <p className="text-[11px] text-center text-[#717171]">
-                You won&apos;t be charged until booking is confirmed. Free cancellation up to 1 hour before arrival.
+                You won&apos;t be charged until booking is confirmed. Free cancellation up to 2 hours before arrival.
               </p>
             </div>
           </div>
@@ -490,41 +518,132 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
       {/* Booking Confirmation Dialog */}
       <Dialog
         isOpen={isBookingModalOpen}
-        onClose={() => setIsBookingModalOpen(false)}
+        onClose={() => {
+          setIsBookingModalOpen(false);
+          setIsBookingConfirmed(false);
+          setBookingError(null);
+        }}
         title={isBookingConfirmed ? "Reservation Confirmed!" : "Confirm Your Parking Spot"}
         description={isBookingConfirmed ? "Your spot is secured and access credentials generated." : `Reservation for ${space.title}`}
       >
-        {isBookingConfirmed ? (
-          <div className="text-center py-6 space-y-4">
-            <div className="h-16 w-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto animate-bounce">
-              <CheckCircle2 className="h-10 w-10" />
-            </div>
-            <div>
-              <h4 className="text-lg font-bold text-[#222222]">You&apos;re All Set!</h4>
-              <p className="text-xs text-[#717171] mt-1">
-                Redirecting to your digital access pass &amp; booking management...
+        {isBookingConfirmed && confirmedBookingData ? (
+          <div className="py-4 space-y-4">
+            <div className="text-center">
+              <div className="h-14 w-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-2">
+                <CheckCircle2 className="h-8 w-8" />
+              </div>
+              <h4 className="text-base font-extrabold text-[#222222]">Access Pass Issued!</h4>
+              <p className="text-xs text-[#717171] mt-0.5">
+                Your reservation has been confirmed and registered on the server.
               </p>
+            </div>
+
+            <div className="rounded-2xl bg-neutral-900 text-white p-4 space-y-2.5 font-mono text-xs">
+              <div className="flex justify-between items-center border-b border-neutral-700 pb-2">
+                <span className="text-neutral-400">Reference:</span>
+                <span className="font-extrabold text-amber-400 text-sm tracking-wider">
+                  {confirmedBookingData.bookingRef}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-neutral-700 pb-2">
+                <span className="text-neutral-400">Access PIN Code:</span>
+                <span className="font-extrabold text-emerald-400 text-sm tracking-widest">
+                  {confirmedBookingData.accessCode}
+                </span>
+              </div>
+              <div className="flex justify-between items-center border-b border-neutral-700 pb-2">
+                <span className="text-neutral-400">Paid Total:</span>
+                <span className="font-bold text-white text-sm">
+                  {formatCurrency(confirmedBookingData.totalPrice)}
+                </span>
+              </div>
+              <div className="pt-1 text-[11px] font-sans text-neutral-300">
+                <span className="font-bold text-white block mb-0.5">Gate Instructions:</span>
+                {confirmedBookingData.instructions}
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="w-1/2 text-xs"
+                onClick={() => {
+                  setIsBookingModalOpen(false);
+                  setIsBookingConfirmed(false);
+                }}
+              >
+                Close
+              </Button>
+              <Button
+                variant="brand"
+                className="w-1/2 text-xs"
+                onClick={() => {
+                  setIsBookingModalOpen(false);
+                  router.push("/bookings");
+                }}
+              >
+                Go to My Bookings
+              </Button>
             </div>
           </div>
         ) : (
-          <div className="space-y-4 text-xs">
-            <div className="rounded-2xl bg-[#F7F7F7] p-4 space-y-2 border border-[#EAEAEA]">
+          <div className="space-y-3.5 text-xs">
+            {/* Arrival DateTime Picker */}
+            <div>
+              <label className="block text-[11px] font-bold text-neutral-700 mb-1">
+                Arrival Schedule (Optional - defaults to immediate)
+              </label>
+              <input
+                type="datetime-local"
+                value={arrivalDatetime}
+                onChange={(e) => setArrivalDatetime(e.target.value)}
+                className="w-full px-3 py-1.5 rounded-lg border border-neutral-300 bg-white focus:outline-none focus:border-neutral-900 text-xs font-mono"
+              />
+            </div>
+
+            {/* Space Summary Card */}
+            <div className="rounded-2xl bg-[#F7F7F7] p-3.5 space-y-2 border border-[#EAEAEA]">
               <div className="flex justify-between font-bold text-[#222222]">
                 <span>Spot:</span>
-                <span>{space.title}</span>
+                <span className="truncate max-w-[200px]">{space.title}</span>
               </div>
               <div className="flex justify-between text-[#717171]">
                 <span>Duration:</span>
-                <span>{selectedDurationHours} Hours (Starting Immediately)</span>
+                <span>{selectedDurationHours} Hours</span>
               </div>
               <div className="flex justify-between text-[#717171]">
-                <span>Tested Vehicle:</span>
-                <span className="capitalize">{testedPreset.name}</span>
+                <span>Vehicle Profile:</span>
+                <span className="capitalize font-semibold text-neutral-800">{testedPreset.name}</span>
+              </div>
+              <div className="flex justify-between text-[#717171]">
+                <span>Clearance Headroom:</span>
+                <span className="text-emerald-700 font-semibold">
+                  +{compatibility.clearanceBufferFeet.toFixed(1)} ft buffer
+                </span>
               </div>
               <div className="flex justify-between font-bold text-sm text-[#FF5A5F] border-t border-[#DDDDDD] pt-2">
                 <span>Total Due:</span>
                 <span>{formatCurrency(totalPrice)}</span>
               </div>
+            </div>
+
+            {/* Test Payment Simulation Selector */}
+            <div className="rounded-xl border border-sky-200 bg-sky-50/70 p-3 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] font-bold text-sky-900">
+                <span>Payment Simulation (Test Mode)</span>
+                <span className="text-[10px] bg-sky-200/80 px-2 py-0.5 rounded-full font-mono">No card stored</span>
+              </div>
+              <select
+                value={testPaymentMethod}
+                onChange={(e) => setTestPaymentMethod(e.target.value as "test_card_visa" | "simulate_failure")}
+                className="w-full text-xs p-1.5 rounded-lg border border-sky-300 bg-white font-medium text-neutral-800 focus:outline-none"
+              >
+                <option value="test_card_visa">Visa &bull;&bull;&bull;&bull; 4242 (Simulate Success)</option>
+                <option value="simulate_failure">Test Card Decline (Simulate Failure)</option>
+              </select>
+              <p className="text-[10px] text-sky-700">
+                Payments are verified strictly on the server before issuing confirmed reservation passes.
+              </p>
             </div>
 
             {bookingError && (
@@ -534,9 +653,9 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
               </div>
             )}
 
-            <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl text-[11px] flex items-center gap-2">
+            <div className="p-2.5 bg-emerald-50 text-emerald-800 rounded-xl text-[11px] flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
-              <span>Includes Automatic Recovery Protection if spot is blocked upon arrival.</span>
+              <span>Includes Free Cancellation &amp; Automatic Booking Recovery Protection.</span>
             </div>
 
             <div className="pt-2 flex gap-3">

@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { mapDbSpaceToParkingSpace, ParkingSpace, SpaceRow } from "@/types/parking";
 
+import { MOCK_PARKING_SPACES } from "@/lib/mock-data";
+
 export async function GET() {
   try {
     const supabase = await createServerSupabaseClient();
@@ -16,8 +18,63 @@ export async function GET() {
           totalBookingsCount: 84,
           averageHourlyYield: 6.85,
         },
-        listings: [],
-        upcomingBookings: [],
+        listings: MOCK_PARKING_SPACES.slice(0, 2),
+        upcomingBookings: [
+          {
+            id: "bk-9941",
+            bookingReference: "PM-8820-A12",
+            spaceId: "sp-101",
+            spaceTitle: "Secure Downtown Underground Garage - Bay A12",
+            spaceAddress: "245 Market St, Financial District",
+            driverId: "dr-01",
+            driverName: "Alex Mercer",
+            driverPhone: "+1 (415) 555-0192",
+            driverEmail: "alex.mercer@example.com",
+            driverAvatar: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
+            startTime: new Date().toISOString(),
+            endTime: new Date(Date.now() + 6 * 3600 * 1000).toISOString(),
+            hourlyRate: 7.50,
+            subtotal: 45.00,
+            hostPayout: 38.25,
+            totalPrice: 45.00,
+            status: "active",
+            paymentStatus: "paid",
+            vehicleModel: "Audi Q5 (White)",
+            vehicleType: "suv",
+            licensePlate: "7XYZ891",
+            accessCode: "PM-8820-A12",
+            canExtend: true,
+            recoveryStatus: "none",
+            createdAt: new Date().toISOString(),
+          },
+          {
+            id: "bk-9812",
+            bookingReference: "PM-4920-B88",
+            spaceId: "sp-102",
+            spaceTitle: "Private Residential Paved Driveway",
+            spaceAddress: "712 Pine Ave, Nob Hill",
+            driverId: "dr-02",
+            driverName: "Elena Rostova",
+            driverPhone: "+1 (415) 555-0188",
+            driverEmail: "elena.r@example.com",
+            driverAvatar: "https://images.unsplash.com/photo-1517841905240-472988babdf9?auto=format&fit=crop&w=200&q=80",
+            startTime: new Date(Date.now() + 24 * 3600 * 1000).toISOString(),
+            endTime: new Date(Date.now() + 32 * 3600 * 1000).toISOString(),
+            hourlyRate: 5.00,
+            subtotal: 40.00,
+            hostPayout: 34.00,
+            totalPrice: 47.50,
+            status: "confirmed",
+            paymentStatus: "paid",
+            vehicleModel: "Tesla Model Y (Grey)",
+            vehicleType: "ev",
+            licensePlate: "9EV8472",
+            accessCode: "GATE-4920",
+            canExtend: true,
+            recoveryStatus: "none",
+            createdAt: new Date().toISOString(),
+          },
+        ],
         recentIssues: [],
       });
     }

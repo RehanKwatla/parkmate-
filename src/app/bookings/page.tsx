@@ -10,7 +10,10 @@ import {
   CheckCircle2, 
   Car, 
   Sparkles, 
-  PlusCircle
+  PlusCircle,
+  AlertCircle,
+  XCircle,
+  Key
 } from "lucide-react";
 import { INITIAL_USER_BOOKINGS, MOCK_RECOVERY_ALTERNATIVES } from "@/lib/mock-data";
 import { Booking, ParkingSpace } from "@/types/parking";
@@ -19,14 +22,27 @@ import { Dialog } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
 import { ParkingImage } from "@/components/ui/parking-image";
 
+type TabType = "all" | "active" | "upcoming" | "completed" | "cancelled";
+
 export default function BookingsPage() {
   const [bookings, setBookings] = React.useState<Booking[]>(INITIAL_USER_BOOKINGS);
-  const [activeTab, setActiveTab] = React.useState<"active" | "completed">("active");
+  const [activeTab, setActiveTab] = React.useState<TabType>("all");
 
-  // Extension Modal state
+  // FlexPark Extension Modal state
   const [extensionBooking, setExtensionBooking] = React.useState<Booking | null>(null);
-  const [extensionHours, setExtensionHours] = React.useState(1);
+  const [extensionHours, setExtensionHours] = React.useState<number>(1);
+  const [isExtending, setIsExtending] = React.useState(false);
+  const [extensionError, setExtensionError] = React.useState<string | null>(null);
   const [extensionSuccess, setExtensionSuccess] = React.useState(false);
+
+  // Cancellation Modal state
+  const [cancellationBooking, setCancellationBooking] = React.useState<Booking | null>(null);
+  const [cancellationReason, setCancellationReason] = React.useState("");
+  const [isCancelling, setIsCancelling] = React.useState(false);
+  const [cancellationResult, setCancellationResult] = React.useState<{
+    refundAmount: number;
+    note: string;
+  } | null>(null);
 
   // Recovery Modal state
   const [recoveryBooking, setRecoveryBooking] = React.useState<Booking | null>(null);
@@ -39,7 +55,7 @@ export default function BookingsPage() {
   // Fetch real bookings on mount
   React.useEffect(() => {
     let active = true;
-    async function loadBookings() {
+    async function init() {
       try {
         const res = await fetch("/api/bookings");
         if (res.ok) {
@@ -49,26 +65,53 @@ export default function BookingsPage() {
           }
         }
       } catch {
-        // Fallback to initial
+        // Fallback to initial sandbox bookings
       }
     }
-    loadBookings();
+    init();
     return () => {
       active = false;
     };
   }, []);
 
-  // Filter bookings by tab
-  const displayedBookings = bookings.filter((b) => {
-    if (activeTab === "active") return b.status === "active" || b.status === "upcoming" || b.status === "recovered";
-    return b.status === "completed" || b.status === "cancelled";
-  });
+  const refreshBookings = async () => {
+    try {
+      const res = await fetch("/api/bookings");
+      if (res.ok) {
+        const data = await res.json();
+        if (data.bookings && data.bookings.length > 0) {
+          setBookings(data.bookings);
+        }
+      }
+    } catch {
+      // Fallback
+    }
+  };
 
-  // Handle Flexible Extension execution
+  // Tab Filtering
+  const displayedBookings = React.useMemo(() => {
+    if (activeTab === "all") return bookings;
+    if (activeTab === "active") {
+      return bookings.filter((b) => b.status === "active" || b.status === "recovered");
+    }
+    if (activeTab === "upcoming") {
+      return bookings.filter((b) => b.status === "confirmed" || b.status === "upcoming");
+    }
+    if (activeTab === "completed") {
+      return bookings.filter((b) => b.status === "completed");
+    }
+    if (activeTab === "cancelled") {
+      return bookings.filter((b) => b.status === "cancelled");
+    }
+    return bookings;
+  }, [bookings, activeTab]);
+
+  // Handle FlexPark Extension Execution
   const handleConfirmExtension = async () => {
     if (!extensionBooking) return;
-    const additionalCost = extensionBooking.hourlyRate * extensionHours;
-    
+    setIsExtending(true);
+    setExtensionError(null);
+
     try {
       const res = await fetch(`/api/bookings/${extensionBooking.id}`, {
         method: "PATCH",
@@ -79,35 +122,66 @@ export default function BookingsPage() {
         }),
       });
 
+      const data = await res.json();
+
       if (!res.ok) {
-        const err = await res.json();
-        alert(err.error || "Extension could not be processed.");
+        setExtensionError(data.error || "Extension could not be processed due to a scheduling conflict.");
+        setIsExtending(false);
         return;
       }
-    } catch {
-      // Proceed with optimistic update
-    }
 
-    setBookings((prev) =>
-      prev.map((b) => {
-        if (b.id === extensionBooking.id) {
-          return {
-            ...b,
-            endTime: `Extended +${extensionHours}hr`,
-            totalPrice: b.totalPrice + additionalCost,
-          };
-        }
-        return b;
-      })
-    );
-    setExtensionSuccess(true);
-    setTimeout(() => {
-      setExtensionSuccess(false);
-      setExtensionBooking(null);
-    }, 1500);
+      setExtensionSuccess(true);
+      await refreshBookings();
+
+      setTimeout(() => {
+        setExtensionSuccess(false);
+        setExtensionBooking(null);
+        setIsExtending(false);
+      }, 1500);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Network error during extension request";
+      setExtensionError(msg);
+      setIsExtending(false);
+    }
   };
 
-  // Handle Booking Recovery execution (Differentiator 1)
+  // Handle Cancellation Execution
+  const handleConfirmCancellation = async () => {
+    if (!cancellationBooking) return;
+    setIsCancelling(true);
+
+    try {
+      const res = await fetch(`/api/bookings/${cancellationBooking.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cancel",
+          reason: cancellationReason || "Driver cancelled reservation",
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "Failed to cancel reservation.");
+        setIsCancelling(false);
+        return;
+      }
+
+      setCancellationResult({
+        refundAmount: data.cancellation?.refundAmount ?? cancellationBooking.totalPrice,
+        note: data.cancellation?.note ?? "Reservation cancelled and space slot released.",
+      });
+
+      await refreshBookings();
+    } catch {
+      alert("Network error processing cancellation.");
+    } finally {
+      setIsCancelling(false);
+    }
+  };
+
+  // Handle Booking Recovery (Spot Blocked Differentiator)
   const handleTriggerRecovery = async () => {
     if (!recoveryBooking) return;
     setIsRecovering(true);
@@ -126,7 +200,6 @@ export default function BookingsPage() {
       const backup = data.alternativeSpace || MOCK_RECOVERY_ALTERNATIVES[0];
       setRecoveredSpace(backup);
 
-      // Update state to recovered space
       setBookings((prev) =>
         prev.map((b) => {
           if (b.id === recoveryBooking.id) {
@@ -135,7 +208,7 @@ export default function BookingsPage() {
               status: "recovered",
               spaceTitle: `[RECOVERED] ${backup.title}`,
               spaceAddress: backup.address,
-              spaceImage: backup.images?.[0] || backup.photos?.[0] || b.spaceImage,
+              spaceImage: backup.images?.[0] || b.spaceImage,
               accessCode: "REC-PASS-FREE-772",
               recoveryStatus: "recovered",
             };
@@ -152,360 +225,578 @@ export default function BookingsPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7] py-10 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-5xl mx-auto space-y-8">
+    <div className="min-h-screen bg-[#F8F9FA] py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-5xl mx-auto space-y-6">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-neutral-200/80 shadow-xs">
           <div>
-            <h1 className="text-3xl font-extrabold text-[#222222] tracking-tight">
-              My Parking Passes &amp; Bookings
-            </h1>
-            <p className="text-sm text-[#717171] mt-1">
-              Manage your active reservations, digital access passes, and extensions
+            <div className="flex items-center gap-2">
+              <h1 className="text-2xl sm:text-3xl font-extrabold text-[#222222] tracking-tight">
+                My Parking Reservations
+              </h1>
+              <span className="text-xs font-bold bg-neutral-100 text-neutral-700 px-2.5 py-0.5 rounded-full">
+                {bookings.length} Total
+              </span>
+            </div>
+            <p className="text-xs sm:text-sm text-[#717171] mt-1">
+              Active sessions, digital access passes, FlexPark extensions, and cancellation policies.
             </p>
           </div>
 
           <Link href="/search">
-            <Button size="md" className="rounded-full shadow-xs">
+            <Button size="md" variant="brand" className="rounded-full shadow-md text-xs font-bold">
               <PlusCircle className="h-4 w-4 mr-1.5" />
               Book Another Space
             </Button>
           </Link>
         </div>
 
-        {/* Tab switch */}
-        <div className="flex items-center gap-2 border-b border-[#DDDDDD] pb-2">
-          <button
-            type="button"
-            onClick={() => setActiveTab("active")}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
-              activeTab === "active"
-                ? "bg-[#222222] text-white"
-                : "text-[#717171] hover:text-[#222222]"
-            }`}
-          >
-            Active &amp; Upcoming ({bookings.filter(b => b.status === "active" || b.status === "upcoming" || b.status === "recovered").length})
-          </button>
-          <button
-            type="button"
-            onClick={() => setActiveTab("completed")}
-            className={`px-4 py-2 rounded-full text-xs font-bold transition-all ${
-              activeTab === "completed"
-                ? "bg-[#222222] text-white"
-                : "text-[#717171] hover:text-[#222222]"
-            }`}
-          >
-            Past Bookings ({bookings.filter(b => b.status === "completed" || b.status === "cancelled").length})
-          </button>
+        {/* Tab switcher: Upcoming, Active, Completed, Cancelled */}
+        <div className="flex items-center gap-1.5 border-b border-neutral-200 pb-2 overflow-x-auto text-xs">
+          {[
+            { id: "all", label: "All Bookings", count: bookings.length },
+            {
+              id: "active",
+              label: "Active Now",
+              count: bookings.filter((b) => b.status === "active" || b.status === "recovered").length,
+            },
+            {
+              id: "upcoming",
+              label: "Upcoming",
+              count: bookings.filter((b) => b.status === "confirmed" || b.status === "upcoming").length,
+            },
+            {
+              id: "completed",
+              label: "Completed",
+              count: bookings.filter((b) => b.status === "completed").length,
+            },
+            {
+              id: "cancelled",
+              label: "Cancelled",
+              count: bookings.filter((b) => b.status === "cancelled").length,
+            },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              onClick={() => setActiveTab(tab.id as TabType)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all whitespace-nowrap flex items-center gap-1.5 ${
+                activeTab === tab.id
+                  ? "bg-[#222222] text-white shadow-xs"
+                  : "bg-white text-neutral-600 border border-neutral-200 hover:border-neutral-400"
+              }`}
+            >
+              <span>{tab.label}</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono ${
+                  activeTab === tab.id ? "bg-neutral-700 text-white" : "bg-neutral-100 text-neutral-600"
+                }`}
+              >
+                {tab.count}
+              </span>
+            </button>
+          ))}
         </div>
 
         {/* Bookings List */}
-        <div className="space-y-6">
-          {displayedBookings.map((booking) => {
-            const isActive = booking.status === "active";
-            const isRecovered = booking.status === "recovered";
+        <div className="space-y-4">
+          {displayedBookings.length > 0 ? (
+            displayedBookings.map((booking) => {
+              const isActive = booking.status === "active";
+              const isUpcoming = booking.status === "confirmed" || booking.status === "upcoming";
+              const isCompleted = booking.status === "completed";
+              const isCancelled = booking.status === "cancelled";
+              const isRecovered = booking.status === "recovered";
 
-            return (
-              <div
-                key={booking.id}
-                className="rounded-3xl bg-white border border-[#EAEAEA] p-6 shadow-sm hover:shadow-md transition-shadow flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
-              >
-                {/* Left: Image & Info */}
-                <div className="flex items-start gap-4">
-                  <ParkingImage
-                    src={booking.spaceImage}
-                    alt={booking.spaceTitle}
-                    className="h-24 w-28 rounded-2xl object-cover shrink-0"
-                  />
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      {isActive && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full">
-                          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
-                          Active Now
+              return (
+                <div
+                  key={booking.id}
+                  className="rounded-3xl bg-white border border-neutral-200 p-5 sm:p-6 shadow-xs hover:shadow-md transition-shadow flex flex-col md:flex-row items-start md:items-center justify-between gap-6"
+                >
+                  {/* Left: Image & Info */}
+                  <div className="flex items-start gap-4 flex-1">
+                    <ParkingImage
+                      src={booking.spaceImage}
+                      alt={booking.spaceTitle}
+                      className="h-24 w-28 rounded-2xl object-cover shrink-0 border border-neutral-100"
+                    />
+                    <div className="space-y-1.5 flex-1 min-w-0">
+                      {/* Status Badges & Booking Reference */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {isActive && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-800 bg-emerald-50 border border-emerald-300 px-2.5 py-0.5 rounded-full">
+                            <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                            Active Now
+                          </span>
+                        )}
+                        {isUpcoming && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-sky-800 bg-sky-50 border border-sky-300 px-2.5 py-0.5 rounded-full">
+                            <Clock className="h-3 w-3" />
+                            Upcoming Pass
+                          </span>
+                        )}
+                        {isCompleted && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-neutral-700 bg-neutral-100 px-2.5 py-0.5 rounded-full">
+                            Completed Trip
+                          </span>
+                        )}
+                        {isCancelled && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-rose-800 bg-rose-50 border border-rose-200 px-2.5 py-0.5 rounded-full">
+                            <XCircle className="h-3 w-3" />
+                            Cancelled &bull; Slot Released
+                          </span>
+                        )}
+                        {isRecovered && (
+                          <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-800 bg-purple-50 border border-purple-200 px-2.5 py-0.5 rounded-full">
+                            <Sparkles className="h-3 w-3" />
+                            Reallocated Space
+                          </span>
+                        )}
+
+                        <span className="text-xs font-mono font-bold text-neutral-800 bg-neutral-100 px-2 py-0.5 rounded-md">
+                          {booking.bookingReference || `PM-${booking.id.slice(0, 8)}`}
                         </span>
-                      )}
-                      {isRecovered && (
-                        <span className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full">
-                          <Sparkles className="h-3 w-3" />
-                          Recovery Space Reallocated
+                      </div>
+
+                      <h3 className="font-bold text-base text-[#222222] truncate">
+                        {booking.spaceTitle}
+                      </h3>
+
+                      <p className="text-xs text-[#717171] flex items-center gap-1">
+                        <MapPin className="h-3.5 w-3.5 text-[#FF5A5F] shrink-0" />
+                        <span className="truncate">{booking.spaceAddress}</span>
+                      </p>
+
+                      <div className="pt-1 flex flex-wrap items-center gap-3 text-xs text-[#222222]">
+                        <span className="flex items-center gap-1 font-semibold">
+                          <Clock className="h-3.5 w-3.5 text-neutral-500" />
+                          {booking.startTime} &rarr; {booking.endTime}
                         </span>
+                        <span>&bull;</span>
+                        <span className="flex items-center gap-1 text-neutral-600">
+                          <Car className="h-3.5 w-3.5" />
+                          {booking.vehicleModel} ({booking.licensePlate})
+                        </span>
+                        <span>&bull;</span>
+                        <span className="font-extrabold text-[#222222]">
+                          {formatCurrency(booking.totalPrice)}
+                        </span>
+                      </div>
+
+                      {/* Policy note */}
+                      {!isCancelled && !isCompleted && (
+                        <p className="text-[10px] text-neutral-500 italic pt-0.5">
+                          Free cancellation up to 2 hours prior to arrival. Space released atomically on cancellation.
+                        </p>
                       )}
-                      <span className="text-xs text-[#717171] font-mono">
-                        Booking #{booking.id}
-                      </span>
-                    </div>
-
-                    <h3 className="font-bold text-base text-[#222222]">
-                      {booking.spaceTitle}
-                    </h3>
-
-                    <p className="text-xs text-[#717171] flex items-center gap-1">
-                      <MapPin className="h-3.5 w-3.5 text-[#FF5A5F]" />
-                      {booking.spaceAddress}
-                    </p>
-
-                    <div className="pt-1 flex flex-wrap items-center gap-3 text-xs text-[#222222]">
-                      <span className="flex items-center gap-1 font-semibold">
-                        <Clock className="h-3.5 w-3.5 text-[#717171]" />
-                        {booking.startTime} &rarr; {booking.endTime}
-                      </span>
-                      <span>&middot;</span>
-                      <span className="flex items-center gap-1 text-[#717171]">
-                        <Car className="h-3.5 w-3.5" />
-                        {booking.vehicleModel} ({booking.licensePlate})
-                      </span>
                     </div>
                   </div>
+
+                  {/* Right: Actions */}
+                  <div className="flex flex-wrap sm:flex-col items-stretch justify-center gap-2 w-full md:w-auto shrink-0 pt-3 md:pt-0 border-t md:border-t-0 border-neutral-100">
+                    {/* View Entry Pass Button */}
+                    {!isCancelled && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setPassModalBooking(booking)}
+                        className="rounded-xl gap-1.5 text-xs font-bold"
+                      >
+                        <QrCode className="h-4 w-4 text-[#FF5A5F]" />
+                        Entry Pass &amp; PIN
+                      </Button>
+                    )}
+
+                    {/* FlexPark Extension Trigger */}
+                    {(isActive || isUpcoming) && booking.canExtend && (
+                      <Button
+                        variant="brand"
+                        size="sm"
+                        onClick={() => {
+                          setExtensionBooking(booking);
+                          setExtensionHours(1);
+                          setExtensionError(null);
+                        }}
+                        className="rounded-xl gap-1.5 text-xs font-bold"
+                      >
+                        <Clock className="h-4 w-4" />
+                        FlexPark Extend
+                      </Button>
+                    )}
+
+                    {/* Cancellation Trigger */}
+                    {(isActive || isUpcoming) && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCancellationBooking(booking);
+                          setCancellationReason("");
+                          setCancellationResult(null);
+                        }}
+                        className="text-xs font-semibold text-neutral-600 hover:text-red-700 hover:bg-red-50 p-1.5 rounded-xl transition-colors text-center"
+                      >
+                        Cancel Reservation
+                      </button>
+                    )}
+
+                    {/* Spot Blocked Recovery Button */}
+                    {isActive && !isRecovered && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setRecoveryBooking(booking);
+                          setRecoveredSpace(null);
+                        }}
+                        className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-xl border border-rose-200 transition-colors flex items-center justify-center gap-1"
+                      >
+                        <ShieldAlert className="h-3.5 w-3.5" />
+                        Spot Blocked?
+                      </button>
+                    )}
+                  </div>
                 </div>
-
-                {/* Right: Actions & QR Pass */}
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full md:w-auto pt-4 md:pt-0 border-t md:border-t-0 border-[#F0F0F0]">
-                  {/* Digital Pass Button */}
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setPassModalBooking(booking)}
-                    className="rounded-xl gap-1.5"
-                  >
-                    <QrCode className="h-4 w-4" />
-                    View Entry Pass
-                  </Button>
-
-                  {/* Differentiator 3: Flexible Extension Button */}
-                  {booking.canExtend && (
-                    <Button
-                      variant="brand"
-                      size="sm"
-                      onClick={() => setExtensionBooking(booking)}
-                      className="rounded-xl gap-1.5"
-                    >
-                      <Clock className="h-4 w-4" />
-                      Request Extension
-                    </Button>
-                  )}
-
-                  {/* Differentiator 1: Trigger Booking Recovery Button */}
-                  {isActive && !isRecovered && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setRecoveryBooking(booking);
-                        setRecoveredSpace(null);
-                      }}
-                      className="text-xs font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-2 rounded-xl border border-rose-200 transition-colors flex items-center justify-center gap-1"
-                    >
-                      <ShieldAlert className="h-3.5 w-3.5" />
-                      Spot Blocked?
-                    </button>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+              );
+            })
+          ) : (
+            <div className="rounded-3xl border border-dashed border-neutral-300 bg-white p-12 text-center">
+              <Car className="h-10 w-10 text-neutral-400 mx-auto mb-3" />
+              <h3 className="text-base font-bold text-neutral-800">
+                No {activeTab !== "all" ? activeTab : ""} reservations found
+              </h3>
+              <p className="text-xs text-neutral-500 mt-1 mb-4">
+                Explore verified parking spaces and secure a spot before your trip.
+              </p>
+              <Link href="/search">
+                <Button variant="brand" size="sm" className="rounded-full text-xs">
+                  Search Available Spaces
+                </Button>
+              </Link>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Flexible Extension Dialog */}
+      {/* ===================================================================== */}
+      {/* 1. FLEXPARK EXTENSION MODAL */}
+      {/* ===================================================================== */}
       <Dialog
-        isOpen={!!extensionBooking}
-        onClose={() => setExtensionBooking(null)}
-        title={extensionSuccess ? "Extension Approved!" : "Flexible Extension Request"}
-        description={
-          extensionSuccess
-            ? "Your reservation time has been extended with zero penalties."
-            : `Add extra time to your booking at ${extensionBooking?.spaceTitle}`
-        }
+        isOpen={Boolean(extensionBooking)}
+        onClose={() => {
+          setExtensionBooking(null);
+          setExtensionError(null);
+        }}
+        title="FlexPark: Extend Active Session"
+        description={extensionBooking ? `Extend parking at ${extensionBooking.spaceTitle}` : ""}
       >
         {extensionSuccess ? (
-          <div className="text-center py-6 space-y-3">
-            <CheckCircle2 className="h-12 w-12 text-emerald-600 mx-auto" />
-            <h4 className="text-base font-bold text-[#222222]">Extra Time Added!</h4>
-            <p className="text-xs text-[#717171]">Host calendar successfully updated without conflicts.</p>
+          <div className="py-6 text-center space-y-2">
+            <div className="h-14 w-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-2 animate-bounce">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+            <h4 className="text-base font-bold text-neutral-900">Extension Confirmed!</h4>
+            <p className="text-xs text-neutral-600">
+              Your parking session has been atomically extended and registered on the server.
+            </p>
           </div>
-        ) : (
+        ) : extensionBooking ? (
           <div className="space-y-4 text-xs">
-            <div className="p-3 bg-emerald-50 border border-emerald-200 rounded-xl text-emerald-900 flex items-start gap-2">
-              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
-              <div>
-                <p className="font-bold">Slot is Available</p>
-                <p className="text-[11px]">No driver reservation is scheduled right after your booking.</p>
+            <div className="rounded-2xl bg-neutral-50 p-4 border border-neutral-200 space-y-2">
+              <div className="flex justify-between font-semibold text-neutral-700">
+                <span>Current End Time:</span>
+                <span className="font-bold text-neutral-900">{extensionBooking.endTime}</span>
+              </div>
+              <div className="flex justify-between font-semibold text-neutral-700">
+                <span>Hourly Rate:</span>
+                <span>{formatCurrency(extensionBooking.hourlyRate)} / hr</span>
               </div>
             </div>
 
             <div>
-              <label className="block font-bold text-[#222222] mb-1.5">
-                Select Extra Time:
+              <label className="block font-bold text-neutral-800 mb-2">
+                Select Additional Duration
               </label>
-              <div className="grid grid-cols-3 gap-2">
-                {[1, 2, 3].map((h) => (
+              <div className="grid grid-cols-4 gap-2">
+                {[1, 2, 3, 4].map((hours) => (
                   <button
-                    key={h}
+                    key={hours}
                     type="button"
-                    onClick={() => setExtensionHours(h)}
-                    className={`py-2 px-3 rounded-xl border font-bold text-center transition-all ${
-                      extensionHours === h
-                        ? "bg-[#222222] text-white border-[#222222]"
-                        : "bg-white border-[#DDDDDD] text-[#717171] hover:border-[#222222]"
+                    onClick={() => setExtensionHours(hours)}
+                    className={`py-2 rounded-xl text-xs font-bold border transition-all ${
+                      extensionHours === hours
+                        ? "bg-[#222222] text-white border-[#222222] shadow-xs"
+                        : "bg-white text-neutral-700 border-neutral-200 hover:border-neutral-400"
                     }`}
                   >
-                    +{h} {h === 1 ? "Hour" : "Hours"}
+                    +{hours} {hours === 1 ? "Hour" : "Hours"}
                   </button>
                 ))}
               </div>
             </div>
 
-            <div className="rounded-xl bg-[#F7F7F7] p-3 space-y-1.5 border border-[#EAEAEA]">
-              <div className="flex justify-between">
-                <span>Hourly Rate:</span>
-                <span className="font-bold">{formatCurrency(extensionBooking?.hourlyRate || 0)} / hr</span>
+            {/* Price Preview */}
+            <div className="rounded-2xl bg-amber-50/80 border border-amber-200/80 p-3.5 space-y-1.5 text-amber-900">
+              <div className="flex justify-between font-bold">
+                <span>Extension Charge:</span>
+                <span>{formatCurrency(extensionBooking.hourlyRate * extensionHours * 1.08)}</span>
               </div>
-              <div className="flex justify-between font-bold text-sm text-[#FF5A5F] border-t border-[#EAEAEA] pt-1.5">
-                <span>Additional Total:</span>
-                <span>{formatCurrency((extensionBooking?.hourlyRate || 0) * extensionHours)}</span>
-              </div>
+              <p className="text-[10px] text-amber-800">
+                Includes state/municipal tax. Space availability is rechecked live against subsequent reservations.
+              </p>
             </div>
+
+            {extensionError && (
+              <div className="p-3 bg-red-50 text-red-800 rounded-xl text-xs border border-red-200 flex items-start gap-2">
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                <div>
+                  <span className="font-bold block">Scheduling Conflict Detected</span>
+                  <span>{extensionError}</span>
+                  <span className="block mt-1 text-[10px] text-red-700">
+                    Your original reservation remains 100% active and preserved.
+                  </span>
+                </div>
+              </div>
+            )}
 
             <div className="flex gap-2 pt-2">
               <Button
                 variant="outline"
-                className="w-1/2"
+                className="w-1/2 text-xs"
                 onClick={() => setExtensionBooking(null)}
+                disabled={isExtending}
               >
                 Cancel
               </Button>
               <Button
                 variant="brand"
-                className="w-1/2"
+                className="w-1/2 text-xs"
                 onClick={handleConfirmExtension}
+                disabled={isExtending}
               >
-                Confirm Extension
+                {isExtending ? "Checking Availability..." : "Confirm & Extend"}
               </Button>
             </div>
           </div>
-        )}
+        ) : null}
       </Dialog>
 
-      {/* Booking Recovery Dialog (Differentiator 1) */}
+      {/* ===================================================================== */}
+      {/* 2. CANCELLATION MODAL */}
+      {/* ===================================================================== */}
       <Dialog
-        isOpen={!!recoveryBooking}
-        onClose={() => setRecoveryBooking(null)}
-        title="ParkMate Booking Recovery Protection"
-        description="If your spot is occupied, blocked, or gate access failed, we rebook you instantly."
+        isOpen={Boolean(cancellationBooking)}
+        onClose={() => {
+          setCancellationBooking(null);
+          setCancellationResult(null);
+        }}
+        title="Cancel Parking Reservation"
+        description={cancellationBooking ? `Booking Reference: ${cancellationBooking.bookingReference}` : ""}
       >
-        {isRecovering ? (
-          <div className="text-center py-8 space-y-4">
-            <div className="h-12 w-12 rounded-full border-4 border-[#FF5A5F] border-t-transparent animate-spin mx-auto" />
-            <div>
-              <h4 className="font-bold text-[#222222]">Locating Nearby Backup Space...</h4>
-              <p className="text-xs text-[#717171]">Matching clearance requirements &amp; proximity...</p>
+        {cancellationResult ? (
+          <div className="py-4 space-y-3 text-center">
+            <div className="h-14 w-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto mb-2">
+              <CheckCircle2 className="h-8 w-8" />
             </div>
+            <h4 className="text-base font-bold text-neutral-900">Reservation Cancelled</h4>
+            <p className="text-xs text-neutral-600">
+              {cancellationResult.note}
+            </p>
+            <div className="rounded-xl bg-neutral-100 p-3 font-mono text-xs">
+              Refund Amount: <span className="font-bold text-emerald-700">{formatCurrency(cancellationResult.refundAmount)}</span>
+            </div>
+            <Button
+              variant="brand"
+              className="w-full text-xs"
+              onClick={() => {
+                setCancellationBooking(null);
+                setCancellationResult(null);
+              }}
+            >
+              Done
+            </Button>
           </div>
-        ) : recoveredSpace ? (
+        ) : cancellationBooking ? (
           <div className="space-y-4 text-xs">
-            <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-2xl text-emerald-900 space-y-2">
-              <div className="flex items-center gap-2">
-                <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-                <span className="font-extrabold text-sm">Backup Space Unlocked!</span>
+            <div className="rounded-2xl bg-neutral-50 p-4 border border-neutral-200 space-y-2">
+              <div className="flex justify-between">
+                <span className="text-neutral-500">Space:</span>
+                <span className="font-bold text-neutral-900">{cancellationBooking.spaceTitle}</span>
               </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-500">Paid Total:</span>
+                <span className="font-bold text-neutral-900">{formatCurrency(cancellationBooking.totalPrice)}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-neutral-500">Scheduled Arrival:</span>
+                <span className="font-semibold text-neutral-800">{cancellationBooking.startTime}</span>
+              </div>
+            </div>
+
+            <div className="rounded-xl bg-sky-50 border border-sky-200 p-3 text-sky-900">
+              <span className="font-bold block mb-0.5">Cancellation Policy:</span>
               <p className="text-[11px] leading-relaxed">
-                We have assigned you to our priority partner space with zero fee difference.
+                Cancelling more than 2 hours before arrival entitles you to a 100% full refund. Cancelling frees this parking space immediately for other drivers.
               </p>
             </div>
 
-            <div className="border border-[#DDDDDD] rounded-2xl p-4 bg-white flex gap-3">
-              <ParkingImage
-                src={recoveredSpace.images[0]}
-                alt={recoveredSpace.title}
-                className="h-20 w-20 rounded-xl object-cover shrink-0"
+            <div>
+              <label className="block font-semibold text-neutral-700 mb-1">
+                Reason for Cancellation (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Plans changed, no longer travelling..."
+                value={cancellationReason}
+                onChange={(e) => setCancellationReason(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl border border-neutral-300 bg-white text-xs focus:outline-none focus:border-neutral-900"
               />
-              <div className="space-y-1">
-                <h4 className="font-bold text-xs text-[#222222]">{recoveredSpace.title}</h4>
-                <p className="text-[11px] text-[#717171]">{recoveredSpace.address}</p>
-                <p className="text-[11px] font-bold text-emerald-600">{recoveredSpace.walkingDistance}</p>
-              </div>
-            </div>
-
-            <Button
-              variant="brand"
-              className="w-full"
-              onClick={() => setRecoveryBooking(null)}
-            >
-              Done &amp; Open Digital Pass
-            </Button>
-          </div>
-        ) : (
-          <div className="space-y-4 text-xs">
-            <p className="text-[#717171] leading-relaxed">
-              Are you at <span className="font-bold text-[#222222]">{recoveryBooking?.spaceAddress}</span> and unable to park?
-            </p>
-
-            <div className="space-y-2">
-              <label className="font-bold text-[#222222]">What happened?</label>
-              <select className="w-full p-2.5 rounded-xl border border-[#DDDDDD] bg-white text-xs">
-                <option>Another unauthorized car is in the space</option>
-                <option>Keypad or gate code did not unlock barrier</option>
-                <option>Host is unresponsive</option>
-                <option>Vehicle clearance is unexpectedly too low</option>
-              </select>
-            </div>
-
-            <div className="p-3 bg-rose-50 text-rose-800 rounded-xl border border-rose-200 text-[11px] flex items-center gap-2">
-              <ShieldAlert className="h-4 w-4 shrink-0 text-rose-600" />
-              <span>Recovery protection will immediately provision an alternative space within 3 minutes walk.</span>
             </div>
 
             <div className="flex gap-2 pt-2">
               <Button
                 variant="outline"
-                className="w-1/2"
-                onClick={() => setRecoveryBooking(null)}
+                className="w-1/2 text-xs"
+                onClick={() => setCancellationBooking(null)}
+                disabled={isCancelling}
               >
-                Nevermind
+                Keep Reservation
               </Button>
               <Button
                 variant="danger"
-                className="w-1/2"
-                onClick={handleTriggerRecovery}
+                className="w-1/2 text-xs"
+                onClick={handleConfirmCancellation}
+                disabled={isCancelling}
               >
-                Trigger Recovery
+                {isCancelling ? "Cancelling..." : "Confirm Cancellation"}
               </Button>
             </div>
+          </div>
+        ) : null}
+      </Dialog>
+
+      {/* ===================================================================== */}
+      {/* 3. DIGITAL ACCESS PASS MODAL */}
+      {/* ===================================================================== */}
+      <Dialog
+        isOpen={Boolean(passModalBooking)}
+        onClose={() => setPassModalBooking(null)}
+        title="ParkMate Digital Parking Pass"
+        description={passModalBooking ? passModalBooking.spaceTitle : ""}
+      >
+        {passModalBooking && (
+          <div className="space-y-4">
+            <div className="rounded-3xl bg-neutral-900 text-white p-6 shadow-xl space-y-4 font-mono text-center">
+              <div className="border-b border-neutral-800 pb-3">
+                <span className="text-[10px] uppercase text-neutral-400 tracking-widest block">
+                  Booking Reference
+                </span>
+                <span className="text-xl font-extrabold text-amber-400 tracking-wider">
+                  {passModalBooking.bookingReference || `PM-${passModalBooking.id.slice(0, 8)}`}
+                </span>
+              </div>
+
+              {/* QR Representation */}
+              <div className="bg-white p-4 rounded-2xl inline-block mx-auto">
+                <QrCode className="h-32 w-32 text-neutral-900" />
+              </div>
+
+              <div className="space-y-1">
+                <span className="text-[10px] text-neutral-400 uppercase tracking-widest block">
+                  Automated Gate PIN Code
+                </span>
+                <span className="text-2xl font-black text-emerald-400 tracking-widest">
+                  {passModalBooking.accessCode}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 text-left text-[11px] bg-neutral-800/80 p-3 rounded-xl border border-neutral-700">
+                <div>
+                  <span className="text-neutral-400 block text-[9px]">Vehicle:</span>
+                  <span className="font-bold text-white">{passModalBooking.vehicleModel}</span>
+                </div>
+                <div>
+                  <span className="text-neutral-400 block text-[9px]">Plate:</span>
+                  <span className="font-bold text-white">{passModalBooking.licensePlate}</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="rounded-2xl bg-neutral-50 p-4 border border-neutral-200 text-xs space-y-2">
+              <div className="flex items-center gap-1.5 font-bold text-neutral-900">
+                <Key className="h-4 w-4 text-[#FF5A5F]" />
+                <span>Entry &amp; Gate Instructions</span>
+              </div>
+              <p className="text-neutral-600 text-xs leading-relaxed">
+                Scan the QR code at the entrance scanner, or type your 4-digit PIN on the driver-side keypad. Gate opens automatically.
+              </p>
+            </div>
+
+            <Button
+              variant="brand"
+              className="w-full text-xs font-bold"
+              onClick={() => setPassModalBooking(null)}
+            >
+              Done &bull; Save to Wallet
+            </Button>
           </div>
         )}
       </Dialog>
 
-      {/* Digital QR Entry Pass Modal */}
+      {/* ===================================================================== */}
+      {/* 4. BOOKING RECOVERY MODAL */}
+      {/* ===================================================================== */}
       <Dialog
-        isOpen={!!passModalBooking}
-        onClose={() => setPassModalBooking(null)}
-        title="ParkMate Digital Access Pass"
-        description="Hold this pass to entry scanner or show attendant"
+        isOpen={Boolean(recoveryBooking)}
+        onClose={() => setRecoveryBooking(null)}
+        title="Instant Booking Recovery Guarantee"
+        description="If your reserved spot is blocked, we automatically assign you a verified alternative."
       >
-        <div className="text-center py-4 space-y-4">
-          <div className="p-6 bg-white border-2 border-dashed border-[#222222] rounded-3xl inline-block shadow-sm">
-            <QrCode className="h-36 w-36 text-[#222222] mx-auto" />
-            <span className="block font-mono font-bold text-sm mt-3 tracking-widest text-[#222222]">
-              {passModalBooking?.accessCode}
-            </span>
+        {recoveredSpace ? (
+          <div className="py-4 space-y-4 text-xs">
+            <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl flex items-center gap-2 font-bold">
+              <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+              <span>Alternative space allocated at zero additional charge!</span>
+            </div>
+            <div className="rounded-2xl border border-neutral-200 p-4 space-y-2 bg-white">
+              <h4 className="font-bold text-sm text-neutral-900">{recoveredSpace.title}</h4>
+              <p className="text-neutral-600">{recoveredSpace.address}</p>
+              <div className="text-purple-700 font-mono font-bold pt-1">
+                New Pass Code: REC-PASS-FREE-772
+              </div>
+            </div>
+            <Button
+              variant="brand"
+              className="w-full text-xs font-bold"
+              onClick={() => setRecoveryBooking(null)}
+            >
+              Accept Alternative Space
+            </Button>
           </div>
-
-          <div className="text-xs text-[#717171] space-y-1">
-            <p className="font-bold text-[#222222]">{passModalBooking?.spaceTitle}</p>
-            <p>{passModalBooking?.spaceAddress}</p>
-            <p className="text-[11px] text-emerald-600 font-semibold">
-              Vehicle Registered: {passModalBooking?.vehicleModel} ({passModalBooking?.licensePlate})
+        ) : (
+          <div className="space-y-4 text-xs">
+            <p className="text-neutral-600">
+              Was your assigned bay occupied by an unauthorized vehicle or blocked by roadwork?
+              Click below to initiate automated recovery.
             </p>
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                className="w-1/2 text-xs"
+                onClick={() => setRecoveryBooking(null)}
+                disabled={isRecovering}
+              >
+                Cancel
+              </Button>
+              <Button
+                variant="danger"
+                className="w-1/2 text-xs"
+                onClick={handleTriggerRecovery}
+                disabled={isRecovering}
+              >
+                {isRecovering ? "Locating Backup Spot..." : "Reallocate Backup Spot"}
+              </Button>
+            </div>
           </div>
-
-          <Button
-            variant="outline"
-            className="w-full rounded-full"
-            onClick={() => setPassModalBooking(null)}
-          >
-            Close Pass
-          </Button>
-        </div>
+        )}
       </Dialog>
     </div>
   );

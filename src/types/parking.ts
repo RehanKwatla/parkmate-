@@ -93,7 +93,7 @@ export interface Booking {
   serviceFee?: number;
   tax?: number;
   totalPrice: number;
-  status: "active" | "upcoming" | "completed" | "cancelled" | "recovered" | "pending";
+  status: "active" | "upcoming" | "completed" | "cancelled" | "recovered" | "pending" | "confirmed" | "access_issue";
   paymentStatus?: "pending" | "paid" | "refunded" | "failed";
   accessCode: string;
   canExtend: boolean;

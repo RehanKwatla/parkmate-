@@ -5,20 +5,37 @@ import { z } from "zod";
 // ==============================================================================
 export const BookingCreateSchema = z.object({
   spaceId: z.string().min(1, "Space ID is required"),
-  durationHours: z.coerce.number().int().min(1, "Duration must be at least 1 hour").max(48, "Duration cannot exceed 48 hours"),
+  durationHours: z.coerce.number().int().min(1, "Duration must be at least 1 hour").max(48, "Duration cannot exceed 48 hours").default(2),
   startTime: z.string().optional(),
+  endTime: z.string().optional(),
   vehicleModel: z.string().trim().min(2, "Vehicle make/model is required (min 2 chars)").max(50),
   vehicleType: z.enum(["compact", "sedan", "suv", "truck", "van", "ev"]),
   licensePlate: z.string().trim().min(2, "License plate is required (min 2 chars)").max(20),
+  customHeightFeet: z.coerce.number().positive().optional(),
+  customLengthFeet: z.coerce.number().positive().optional(),
+  customWidthFeet: z.coerce.number().positive().optional(),
+  paymentMethod: z.string().default("test_card_visa"),
+  simulateFailure: z.boolean().default(false),
+});
+
+export const BookingQuoteSchema = z.object({
+  spaceId: z.string().min(1, "Space ID is required"),
+  startTime: z.string().optional(),
+  endTime: z.string().optional(),
+  durationHours: z.coerce.number().int().min(1).max(48).default(2),
 });
 
 export const BookingExtensionSchema = z.object({
   additionalHours: z.coerce.number().int().min(1, "Must extend at least 1 hour").max(24, "Extension cannot exceed 24 hours"),
+  simulateFailure: z.boolean().default(false),
 });
 
 export const BookingStatusUpdateSchema = z.object({
-  status: z.enum(["active", "completed", "cancelled"]),
+  action: z.enum(["extend", "cancel", "status", "complete", "report_issue"]).default("status"),
+  status: z.enum(["pending", "confirmed", "active", "completed", "cancelled", "access_issue"]).optional(),
+  additionalHours: z.coerce.number().int().min(1).max(24).optional(),
   reason: z.string().optional(),
+  simulateFailure: z.boolean().default(false),
 });
 
 // ==============================================================================
