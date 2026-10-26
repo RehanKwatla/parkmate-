@@ -22,6 +22,7 @@ import {
   Edit3,
   AlertTriangle,
   Ban,
+  ShieldAlert,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -86,6 +87,27 @@ interface ConflictDetail {
   endTime: string;
   vehicleModel?: string;
   driverName?: string;
+}
+
+interface OwnerIssueReport {
+  id: string;
+  booking_id?: string;
+  space_id?: string;
+  report_type?: string;
+  description: string;
+  status: "open" | "investigating" | "resolved" | "dismissed";
+  resolution_notes?: string | null;
+  created_at: string;
+  isDemo?: boolean;
+  parking_spaces?: {
+    id: string;
+    title: string;
+    address: string;
+  } | null;
+  profiles?: {
+    display_name?: string;
+    phone?: string;
+  } | null;
 }
 
 const DEFAULT_OWNER_SPACES: ParkingSpace[] = [
@@ -157,9 +179,30 @@ const DEFAULT_OWNER_SPACES: ParkingSpace[] = [
   },
 ];
 
+const INITIAL_OWNER_ISSUES: OwnerIssueReport[] = [
+  {
+    id: "rep-demo-01",
+    booking_id: "bk-demo-fail",
+    space_id: "sp-101",
+    report_type: "spot_blocked",
+    description: "Space occupied by another vehicle: Red Ford F-150 parked without authorization in bay A12.",
+    status: "open",
+    created_at: "2026-10-26T23:30:00.000Z",
+    parking_spaces: {
+      id: "sp-101",
+      title: "Secure Downtown Underground Garage - Bay A12",
+      address: "245 Market St, Financial District",
+    },
+    profiles: {
+      display_name: "Elena Rostova",
+      phone: "+1 (415) 555-0188",
+    },
+  },
+];
+
 export default function OwnerDashboardPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = React.useState<"overview" | "spaces" | "availability" | "bookings">("spaces");
+  const [activeTab, setActiveTab] = React.useState<"overview" | "spaces" | "availability" | "bookings" | "issues">("spaces");
   const [filterStatus, setFilterStatus] = React.useState<"all" | "published" | "draft" | "paused">("all");
 
   // Overview stats & records
@@ -175,6 +218,9 @@ export default function OwnerDashboardPage() {
   });
   const [listings, setListings] = React.useState<ParkingSpace[]>(DEFAULT_OWNER_SPACES);
   const [bookings, setBookings] = React.useState<OwnerBookingItem[]>([]);
+  const [issues, setIssues] = React.useState<OwnerIssueReport[]>(INITIAL_OWNER_ISSUES);
+  const [isAdminView, setIsAdminView] = React.useState(false);
+  const [updatingIssueId, setUpdatingIssueId] = React.useState<string | null>(null);
   // Smart commute toggle
   const [smartShareActive, setSmartShareActive] = React.useState(true);
   const [selectedDays, setSelectedDays] = React.useState<string[]>(["Mon", "Tue", "Wed", "Thu", "Fri"]);
@@ -225,6 +271,14 @@ export default function OwnerDashboardPage() {
           setBookings(data.upcomingBookings);
         }
       }
+
+      const issuesRes = await fetch("/api/recovery?action=owner_reports");
+      if (issuesRes.ok) {
+        const iData = await issuesRes.json();
+        if (iData.reports && iData.reports.length > 0) {
+          setIssues(iData.reports);
+        }
+      }
     } catch {
       // Keep defaults
     }
@@ -245,6 +299,15 @@ export default function OwnerDashboardPage() {
           }
           if (data.upcomingBookings) setBookings(data.upcomingBookings);
         }
+
+        const iRes = await fetch("/api/recovery?action=owner_reports");
+        if (iRes.ok) {
+          const iData = await iRes.json();
+          if (!active) return;
+          if (iData.reports && iData.reports.length > 0) {
+            setIssues(iData.reports);
+          }
+        }
       } catch {
         // Fallback
       }
@@ -254,6 +317,49 @@ export default function OwnerDashboardPage() {
       active = false;
     };
   }, [user]);
+
+  const handleUpdateIssueStatus = async (
+    reportId: string,
+    newStatus: "open" | "investigating" | "resolved" | "dismissed",
+    notes?: string
+  ) => {
+    setUpdatingIssueId(reportId);
+    try {
+      const res = await fetch("/api/recovery", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reportId,
+          status: newStatus,
+          resolutionNotes: notes || `Owner verified and resolved on ${new Date().toLocaleDateString()}`,
+        }),
+      });
+
+      if (res.ok) {
+        setIssues((prev) =>
+          prev.map((iss) =>
+            iss.id === reportId
+              ? {
+                  ...iss,
+                  status: newStatus,
+                  resolution_notes: notes || `Status updated to ${newStatus}`,
+                }
+              : iss
+          )
+        );
+        setToastMessage({
+          type: "success",
+          text: `Report #${reportId} updated to "${newStatus}".`,
+        });
+      } else {
+        setToastMessage({ type: "error", text: "Failed to update report status." });
+      }
+    } catch {
+      setToastMessage({ type: "error", text: "Network error updating report." });
+    } finally {
+      setUpdatingIssueId(null);
+    }
+  };
 
   // Load availability rules when selected space changes
   React.useEffect(() => {
@@ -594,6 +700,7 @@ export default function OwnerDashboardPage() {
             { id: "spaces", label: "My Spaces & Pricing", count: listings.length },
             { id: "availability", label: "Availability Calendar & Exceptions", count: spaceRules.length },
             { id: "bookings", label: "Upcoming Bookings & Drivers", count: bookings.length },
+            { id: "issues", label: "Access Issues & Disputes", count: issues.length },
             { id: "overview", label: "Commute Auto-Share & Surge", count: null },
           ].map((tab) => (
             <button
@@ -1088,6 +1195,217 @@ export default function OwnerDashboardPage() {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* TAB 4: Access Issues, Reports & Admin Moderation */}
+        {activeTab === "issues" && (
+          <div className="space-y-6">
+            <div className="rounded-3xl bg-white p-7 border border-[#EAEAEA] shadow-xs space-y-4">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-neutral-100 pb-4">
+                <div>
+                  <h3 className="text-lg font-extrabold text-[#222222] flex items-center gap-2">
+                    <ShieldAlert className="h-5 w-5 text-rose-600" />
+                    Reported Access Problems &amp; Landlord Disputes
+                  </h3>
+                  <p className="text-xs text-[#717171] mt-0.5">
+                    Review and resolve arrival disruptions, blocked bays, and gate access failures reported by drivers.
+                  </p>
+                </div>
+
+                {/* Admin Mode Toggle */}
+                <div className="flex items-center gap-2 bg-neutral-100 p-1.5 rounded-full text-xs font-bold shrink-0">
+                  <span className="text-neutral-500 text-[11px] px-2">Role View:</span>
+                  <button
+                    type="button"
+                    onClick={() => setIsAdminView(false)}
+                    className={`px-3 py-1 rounded-full transition-all ${
+                      !isAdminView
+                        ? "bg-white text-neutral-900 shadow-2xs font-bold"
+                        : "text-neutral-500 hover:text-neutral-900"
+                    }`}
+                  >
+                    Host Owner
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAdminView(true)}
+                    className={`px-3 py-1 rounded-full transition-all ${
+                      isAdminView
+                        ? "bg-purple-600 text-white shadow-2xs font-bold"
+                        : "text-neutral-500 hover:text-neutral-900"
+                    }`}
+                  >
+                    Admin Moderation
+                  </button>
+                </div>
+              </div>
+
+              {issues.length === 0 ? (
+                <div className="rounded-2xl border border-dashed border-neutral-300 p-10 text-center">
+                  <CheckCircle2 className="h-9 w-9 text-emerald-500 mx-auto mb-2" />
+                  <p className="font-bold text-neutral-800 text-sm">No Reported Access Problems</p>
+                  <p className="text-xs text-neutral-500 mt-1">
+                    All your parking bays are operating normally with zero reported driver disputes.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {issues.map((issue) => {
+                    const isOpen = issue.status === "open";
+                    const isInvestigating = issue.status === "investigating";
+                    const isResolved = issue.status === "resolved";
+                    const isUpdating = updatingIssueId === issue.id;
+
+                    return (
+                      <div
+                        key={issue.id}
+                        className={`p-5 rounded-2xl border transition-all ${
+                          isResolved
+                            ? "bg-emerald-50/40 border-emerald-200"
+                            : isOpen
+                            ? "bg-rose-50/30 border-rose-200 shadow-2xs"
+                            : "bg-amber-50/30 border-amber-200"
+                        }`}
+                      >
+                        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-neutral-200/60 pb-3">
+                          <div className="flex items-center gap-2">
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase tracking-wider ${
+                                isResolved
+                                  ? "bg-emerald-100 text-emerald-800"
+                                  : isOpen
+                                  ? "bg-rose-100 text-rose-800"
+                                  : "bg-amber-100 text-amber-800"
+                              }`}
+                            >
+                              {issue.status}
+                            </span>
+                            <span className="text-xs font-mono font-bold text-neutral-500">
+                              #{issue.id}
+                            </span>
+                            {issue.isDemo && (
+                              <span className="text-[10px] font-bold bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md">
+                                [Demo Simulation]
+                              </span>
+                            )}
+                          </div>
+
+                          <span className="text-xs text-neutral-500">
+                            Reported: {new Date(issue.created_at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })},{" "}
+                            {new Date(issue.created_at).toLocaleDateString([], { month: "short", day: "numeric" })}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-3 text-xs">
+                          <div>
+                            <span className="text-[10px] uppercase font-bold text-neutral-400 block">
+                              Affected Space
+                            </span>
+                            <span className="font-bold text-neutral-900 block">
+                              {issue.parking_spaces?.title || "Downtown Garage Bay A12"}
+                            </span>
+                            <span className="text-neutral-500 truncate block">
+                              {issue.parking_spaces?.address || "245 Market St"}
+                            </span>
+                          </div>
+
+                          <div className="md:col-span-2">
+                            <span className="text-[10px] uppercase font-bold text-neutral-400 block">
+                              Driver Observation &amp; Problem Description
+                            </span>
+                            <p className="font-semibold text-neutral-800 mt-0.5 leading-relaxed bg-white/80 p-2.5 rounded-xl border border-neutral-200/70">
+                              {issue.description}
+                            </p>
+                          </div>
+                        </div>
+
+                        {issue.resolution_notes && (
+                          <div className="mt-3 p-3 bg-white/90 rounded-xl border border-emerald-200 text-xs text-emerald-900 flex items-start gap-2">
+                            <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <div>
+                              <span className="font-bold block">Resolution Log</span>
+                              <span>{issue.resolution_notes}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Action buttons */}
+                        <div className="mt-4 pt-3 border-t border-neutral-200/60 flex flex-wrap items-center justify-between gap-3">
+                          <div className="text-[11px] text-neutral-500">
+                            {isAdminView ? (
+                              <span className="font-semibold text-purple-700">
+                                Admin Moderation Protocol: All actions logged in system audit trail.
+                              </span>
+                            ) : (
+                              <span>Landlord Action: Verify bay access to restore live listing status.</span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            {!isResolved && (
+                              <>
+                                {!isInvestigating && (
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    className="text-xs"
+                                    disabled={isUpdating}
+                                    onClick={() =>
+                                      handleUpdateIssueStatus(
+                                        issue.id,
+                                        "investigating",
+                                        "Owner/Admin dispatched on-site attendant to inspect obstruction."
+                                      )
+                                    }
+                                  >
+                                    Mark Investigating
+                                  </Button>
+                                )}
+
+                                <Button
+                                  variant="brand"
+                                  size="sm"
+                                  className="text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white"
+                                  disabled={isUpdating}
+                                  onClick={() =>
+                                    handleUpdateIssueStatus(
+                                      issue.id,
+                                      "resolved",
+                                      "Owner confirmed unauthorized vehicle removed and bay is fully accessible."
+                                    )
+                                  }
+                                >
+                                  {isUpdating ? "Updating..." : "Mark Bay Cleared & Resolved"}
+                                </Button>
+                              </>
+                            )}
+
+                            {isAdminView && isResolved && (
+                              <Button
+                                variant="outline"
+                                size="sm"
+                                className="text-xs text-neutral-500"
+                                disabled={isUpdating}
+                                onClick={() =>
+                                  handleUpdateIssueStatus(
+                                    issue.id,
+                                    "open",
+                                    "Admin reopened dispute for re-investigation."
+                                  )
+                                }
+                              >
+                                Reopen Dispute
+                              </Button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
           </div>
         )}
 

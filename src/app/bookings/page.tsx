@@ -13,10 +13,13 @@ import {
   PlusCircle,
   AlertCircle,
   XCircle,
-  Key
+  Key,
+  ShieldCheck,
+  AlertTriangle,
 } from "lucide-react";
-import { INITIAL_USER_BOOKINGS, MOCK_RECOVERY_ALTERNATIVES } from "@/lib/mock-data";
+import { INITIAL_USER_BOOKINGS } from "@/lib/mock-data";
 import { Booking, ParkingSpace } from "@/types/parking";
+import { AccessProblemType, RecoveryAlternative } from "@/lib/recovery-engine";
 import { Button } from "@/components/ui/button";
 import { Dialog } from "@/components/ui/dialog";
 import { formatCurrency } from "@/lib/utils";
@@ -46,8 +49,25 @@ export default function BookingsPage() {
 
   // Recovery Modal state
   const [recoveryBooking, setRecoveryBooking] = React.useState<Booking | null>(null);
-  const [isRecovering, setIsRecovering] = React.useState(false);
-  const [recoveredSpace, setRecoveredSpace] = React.useState<ParkingSpace | null>(null);
+  const [recoveryStep, setRecoveryStep] = React.useState<
+    "select_problem" | "review_alternatives" | "confirmed_replacement" | "refunded"
+  >("select_problem");
+  const [selectedProblemType, setSelectedProblemType] = React.useState<AccessProblemType>("space_occupied");
+  const [problemNotes, setProblemNotes] = React.useState("");
+  const [isDemoMode, setIsDemoMode] = React.useState(false);
+  const [recoveryAlternatives, setRecoveryAlternatives] = React.useState<RecoveryAlternative[]>([]);
+  const [selectedAlternativeId, setSelectedAlternativeId] = React.useState<string | null>(null);
+  const [isSubmittingReport, setIsSubmittingReport] = React.useState(false);
+  const [isConfirmingReplacement, setIsConfirmingReplacement] = React.useState(false);
+  const [confirmedSpace, setConfirmedSpace] = React.useState<ParkingSpace | null>(null);
+  const [newPassPin, setNewPassPin] = React.useState<string | null>(null);
+  const [refundInfo, setRefundInfo] = React.useState<{
+    refundAmount: number;
+    credit: number;
+    ticketId: string;
+    summary: string;
+  } | null>(null);
+  const [recoveryConflictError, setRecoveryConflictError] = React.useState<string | null>(null);
 
   // Digital Pass QR Modal
   const [passModalBooking, setPassModalBooking] = React.useState<Booking | null>(null);
@@ -181,46 +201,131 @@ export default function BookingsPage() {
     }
   };
 
-  // Handle Booking Recovery (Spot Blocked Differentiator)
-  const handleTriggerRecovery = async () => {
+  // =========================================================================
+  // Recovery Handlers (Failed-Arrival Workflow)
+  // =========================================================================
+  const handleStartReporting = (booking: Booking, isDemo = false) => {
+    setRecoveryBooking(booking);
+    setRecoveryStep("select_problem");
+    setSelectedProblemType("space_occupied");
+    setProblemNotes("");
+    setIsDemoMode(isDemo);
+    setRecoveryAlternatives([]);
+    setSelectedAlternativeId(null);
+    setConfirmedSpace(null);
+    setNewPassPin(null);
+    setRefundInfo(null);
+    setRecoveryConflictError(null);
+  };
+
+  const handleSubmitAccessReport = async () => {
     if (!recoveryBooking) return;
-    setIsRecovering(true);
+    setIsSubmittingReport(true);
+    setRecoveryConflictError(null);
 
     try {
       const res = await fetch("/api/recovery", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          action: "report",
           bookingId: recoveryBooking.id,
-          reason: "Reserved parking space blocked upon arrival by unauthorized vehicle.",
+          problemType: selectedProblemType,
+          notes: problemNotes,
+          isDemo: isDemoMode,
         }),
       });
 
       const data = await res.json();
-      const backup = data.alternativeSpace || MOCK_RECOVERY_ALTERNATIVES[0];
-      setRecoveredSpace(backup);
+      if (!res.ok) {
+        alert(data.error || "Failed to submit access problem report.");
+        setIsSubmittingReport(false);
+        return;
+      }
 
-      setBookings((prev) =>
-        prev.map((b) => {
-          if (b.id === recoveryBooking.id) {
-            return {
-              ...b,
-              status: "recovered",
-              spaceTitle: `[RECOVERED] ${backup.title}`,
-              spaceAddress: backup.address,
-              spaceImage: backup.images?.[0] || b.spaceImage,
-              accessCode: "REC-PASS-FREE-772",
-              recoveryStatus: "recovered",
-            };
-          }
-          return b;
-        })
-      );
+      const alts = data.alternatives || [];
+      setRecoveryAlternatives(alts);
+      if (alts.length > 0) {
+        setSelectedAlternativeId(alts[0].space.id);
+      }
+      setRecoveryStep("review_alternatives");
+      await refreshBookings();
     } catch {
-      const backup = MOCK_RECOVERY_ALTERNATIVES[0];
-      setRecoveredSpace(backup);
+      alert("Network error reporting problem.");
     } finally {
-      setIsRecovering(false);
+      setIsSubmittingReport(false);
+    }
+  };
+
+  const handleConfirmReplacement = async () => {
+    if (!recoveryBooking || !selectedAlternativeId) return;
+    setIsConfirmingReplacement(true);
+    setRecoveryConflictError(null);
+
+    try {
+      const res = await fetch("/api/recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "confirm_replacement",
+          bookingId: recoveryBooking.id,
+          replacementSpaceId: selectedAlternativeId,
+          isDemo: isDemoMode,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setRecoveryConflictError(data.message || "This alternative space is no longer available.");
+        setIsConfirmingReplacement(false);
+        return;
+      }
+
+      setConfirmedSpace(data.replacementSpace);
+      setNewPassPin(data.newAccessCode);
+      setRecoveryStep("confirmed_replacement");
+      await refreshBookings();
+    } catch {
+      setRecoveryConflictError("Network error confirming replacement space.");
+    } finally {
+      setIsConfirmingReplacement(false);
+    }
+  };
+
+  const handleRequestRefundAndEscalation = async () => {
+    if (!recoveryBooking) return;
+    setIsSubmittingReport(true);
+
+    try {
+      const res = await fetch("/api/recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "cancel_and_refund",
+          bookingId: recoveryBooking.id,
+          reason: `Driver opted for refund due to: ${selectedProblemType}`,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        alert(data.error || "Failed to process refund.");
+        setIsSubmittingReport(false);
+        return;
+      }
+
+      setRefundInfo({
+        refundAmount: data.refundAmount,
+        credit: data.inconvenienceCredit,
+        ticketId: data.ticketId,
+        summary: data.message,
+      });
+      setRecoveryStep("refunded");
+      await refreshBookings();
+    } catch {
+      alert("Network error processing refund.");
+    } finally {
+      setIsSubmittingReport(false);
     }
   };
 
@@ -439,19 +544,28 @@ export default function BookingsPage() {
                       </button>
                     )}
 
-                    {/* Spot Blocked Recovery Button */}
-                    {isActive && !isRecovered && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setRecoveryBooking(booking);
-                          setRecoveredSpace(null);
-                        }}
-                        className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-xl border border-rose-200 transition-colors flex items-center justify-center gap-1"
-                      >
-                        <ShieldAlert className="h-3.5 w-3.5" />
-                        Spot Blocked?
-                      </button>
+                    {/* Report an Access Problem Trigger */}
+                    {!isCancelled && !isCompleted && !isRecovered && (
+                      <div className="flex flex-col gap-1.5 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => handleStartReporting(booking, false)}
+                          className="text-[11px] font-bold text-rose-600 hover:text-rose-700 bg-rose-50 hover:bg-rose-100 px-3 py-1.5 rounded-xl border border-rose-200 transition-colors flex items-center justify-center gap-1.5 shadow-2xs"
+                        >
+                          <ShieldAlert className="h-3.5 w-3.5" />
+                          Report Access Problem
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleStartReporting(booking, true)}
+                          className="text-[10px] font-semibold text-purple-700 hover:text-purple-800 bg-purple-50 hover:bg-purple-100 px-2.5 py-1 rounded-lg border border-purple-200 transition-colors flex items-center justify-center gap-1"
+                          title="Simulate a failed arrival (e.g. space occupied) to test automated recovery"
+                        >
+                          <Sparkles className="h-3 w-3 text-purple-600" />
+                          [Demo] Simulate Failed Arrival
+                        </button>
+                      </div>
                     )}
                   </div>
                 </div>
@@ -742,59 +856,348 @@ export default function BookingsPage() {
       </Dialog>
 
       {/* ===================================================================== */}
-      {/* 4. BOOKING RECOVERY MODAL */}
+      {/* ===================================================================== */}
+      {/* 4. MULTI-STEP BOOKING RECOVERY WIZARD */}
       {/* ===================================================================== */}
       <Dialog
         isOpen={Boolean(recoveryBooking)}
         onClose={() => setRecoveryBooking(null)}
-        title="Instant Booking Recovery Guarantee"
-        description="If your reserved spot is blocked, we automatically assign you a verified alternative."
+        title="ParkMate Booking Recovery Protection"
+        description="If you cannot access your reserved space, our server matches you with verified compatible alternatives nearby."
       >
-        {recoveredSpace ? (
-          <div className="py-4 space-y-4 text-xs">
-            <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl flex items-center gap-2 font-bold">
-              <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
-              <span>Alternative space allocated at zero additional charge!</span>
-            </div>
-            <div className="rounded-2xl border border-neutral-200 p-4 space-y-2 bg-white">
-              <h4 className="font-bold text-sm text-neutral-900">{recoveredSpace.title}</h4>
-              <p className="text-neutral-600">{recoveredSpace.address}</p>
-              <div className="text-purple-700 font-mono font-bold pt-1">
-                New Pass Code: REC-PASS-FREE-772
-              </div>
-            </div>
-            <Button
-              variant="brand"
-              className="w-full text-xs font-bold"
-              onClick={() => setRecoveryBooking(null)}
-            >
-              Accept Alternative Space
-            </Button>
-          </div>
-        ) : (
+        {recoveryBooking && (
           <div className="space-y-4 text-xs">
-            <p className="text-neutral-600">
-              Was your assigned bay occupied by an unauthorized vehicle or blocked by roadwork?
-              Click below to initiate automated recovery.
-            </p>
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="w-1/2 text-xs"
-                onClick={() => setRecoveryBooking(null)}
-                disabled={isRecovering}
-              >
-                Cancel
-              </Button>
-              <Button
-                variant="danger"
-                className="w-1/2 text-xs"
-                onClick={handleTriggerRecovery}
-                disabled={isRecovering}
-              >
-                {isRecovering ? "Locating Backup Spot..." : "Reallocate Backup Spot"}
-              </Button>
-            </div>
+            {/* STEP 1: Select Problem Type */}
+            {recoveryStep === "select_problem" && (
+              <div className="space-y-4">
+                {isDemoMode && (
+                  <div className="p-3 bg-purple-50 text-purple-900 rounded-2xl border border-purple-200 flex items-center gap-2">
+                    <Sparkles className="h-4 w-4 text-purple-600 shrink-0" />
+                    <span className="text-[11px] font-semibold">
+                      Demo Simulation Mode: Testing failover with simulated arrival telemetry.
+                    </span>
+                  </div>
+                )}
+
+                <div>
+                  <label className="block font-bold text-neutral-800 mb-2">
+                    What problem are you experiencing at {recoveryBooking.spaceTitle}?
+                  </label>
+                  <div className="space-y-2">
+                    {[
+                      {
+                        id: "space_occupied" as AccessProblemType,
+                        title: "Space occupied by another vehicle",
+                        desc: "An unauthorized car is parked in your assigned parking bay.",
+                      },
+                      {
+                        id: "entrance_inaccessible" as AccessProblemType,
+                        title: "Entrance inaccessible",
+                        desc: "Gated barrier is down, entrance locked, or keypad PIN code failed.",
+                      },
+                      {
+                        id: "listing_details_incorrect" as AccessProblemType,
+                        title: "Listing details incorrect",
+                        desc: "Height clearance is lower than stated or address could not be located.",
+                      },
+                      {
+                        id: "other" as AccessProblemType,
+                        title: "Other physical access barrier",
+                        desc: "Construction, temporary roadwork, or safety impediment.",
+                      },
+                    ].map((opt) => (
+                      <label
+                        key={opt.id}
+                        onClick={() => setSelectedProblemType(opt.id)}
+                        className={`flex items-start gap-3 p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                          selectedProblemType === opt.id
+                            ? "bg-rose-50/70 border-rose-300 ring-1 ring-rose-300"
+                            : "bg-white border-neutral-200 hover:border-neutral-300"
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          name="problemType"
+                          value={opt.id}
+                          checked={selectedProblemType === opt.id}
+                          onChange={() => setSelectedProblemType(opt.id)}
+                          className="mt-1 text-rose-600 focus:ring-rose-500"
+                        />
+                        <div>
+                          <span className="font-bold text-neutral-900 block">{opt.title}</span>
+                          <span className="text-neutral-500 text-[11px] block">{opt.desc}</span>
+                        </div>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-bold text-neutral-800 mb-1">
+                    Additional notes / details (optional):
+                  </label>
+                  <input
+                    type="text"
+                    value={problemNotes}
+                    onChange={(e) => setProblemNotes(e.target.value)}
+                    placeholder="e.g. Blue Honda Civic parked in spot #A12"
+                    className="w-full px-3 py-2 rounded-xl border border-neutral-300 bg-white text-xs focus:outline-none focus:border-neutral-900"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <Button
+                    variant="outline"
+                    className="w-1/3 text-xs"
+                    onClick={() => setRecoveryBooking(null)}
+                    disabled={isSubmittingReport}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    variant="brand"
+                    className="w-2/3 text-xs font-bold"
+                    onClick={handleSubmitAccessReport}
+                    disabled={isSubmittingReport}
+                  >
+                    {isSubmittingReport ? "Searching Alternatives..." : "Find Backup Spaces"}
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* STEP 2: Review Alternatives */}
+            {recoveryStep === "review_alternatives" && (
+              <div className="space-y-4">
+                {recoveryConflictError && (
+                  <div className="p-3 bg-red-50 text-red-800 rounded-xl text-xs border border-red-200 flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 text-red-600 mt-0.5" />
+                    <div>
+                      <span className="font-bold block">Selection Conflict</span>
+                      <span>{recoveryConflictError}</span>
+                    </div>
+                  </div>
+                )}
+
+                {recoveryAlternatives.length > 0 ? (
+                  <>
+                    <div className="p-3 bg-emerald-50 text-emerald-900 rounded-2xl border border-emerald-200 flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <CheckCircle2 className="h-5 w-5 text-emerald-600 shrink-0" />
+                        <div>
+                          <span className="font-bold block text-xs">
+                            {recoveryAlternatives.length} Compatible Alternative Spaces Found
+                          </span>
+                          <span className="text-[11px] text-emerald-700">
+                            Revalidated for your vehicle clearance &bull; 100% price matched
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2.5 max-h-72 overflow-y-auto pr-1">
+                      {recoveryAlternatives.map((alt) => {
+                        const isSelected = selectedAlternativeId === alt.space.id;
+                        return (
+                          <div
+                            key={alt.space.id}
+                            onClick={() => setSelectedAlternativeId(alt.space.id)}
+                            className={`p-3.5 rounded-2xl border cursor-pointer transition-all ${
+                              isSelected
+                                ? "bg-amber-50/70 border-amber-400 ring-2 ring-amber-400 shadow-xs"
+                                : "bg-white border-neutral-200 hover:border-neutral-300"
+                            }`}
+                          >
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex items-start gap-3">
+                                <div className="h-12 w-12 rounded-xl overflow-hidden shrink-0 bg-neutral-100">
+                                  <ParkingImage
+                                    src={alt.space.images?.[0]}
+                                    alt={alt.space.title}
+                                    className="h-full w-full object-cover"
+                                  />
+                                </div>
+                                <div className="space-y-1">
+                                  <h4 className="font-bold text-xs text-neutral-900 line-clamp-1">
+                                    {alt.space.title}
+                                  </h4>
+                                  <p className="text-[11px] text-neutral-500 line-clamp-1">
+                                    {alt.space.address}
+                                  </p>
+                                  <div className="flex items-center gap-2 text-[10px]">
+                                    <span className="font-bold text-neutral-700">
+                                      {alt.distanceMiles} mi (~{alt.walkingMinutes} min walk)
+                                    </span>
+                                    <span>&bull;</span>
+                                    <span className="text-emerald-700 font-semibold">
+                                      Clearance: {alt.space.clearanceFeet} ft
+                                    </span>
+                                  </div>
+                                </div>
+                              </div>
+
+                              <div className="text-right shrink-0">
+                                <span className="text-[11px] font-extrabold text-neutral-900 block">
+                                  $0.00 Extra
+                                </span>
+                                <span className="text-[9px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md">
+                                  Price Matched
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Why recommended reasons */}
+                            <div className="mt-2.5 pt-2 border-t border-neutral-100 space-y-1">
+                              {alt.recommendationReasons.map((reason, idx) => (
+                                <div key={idx} className="flex items-center gap-1.5 text-[10px] text-neutral-600">
+                                  <CheckCircle2 className="h-3 w-3 text-emerald-500 shrink-0" />
+                                  <span>{reason}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    <div className="flex gap-2 pt-2">
+                      <Button
+                        variant="brand"
+                        className="w-full text-xs font-bold"
+                        onClick={handleConfirmReplacement}
+                        disabled={isConfirmingReplacement || !selectedAlternativeId}
+                      >
+                        {isConfirmingReplacement ? "Confirming Replacement Space..." : "Confirm Replacement Space & Get Pass"}
+                      </Button>
+                    </div>
+
+                    <div className="text-center pt-1 border-t border-neutral-100">
+                      <button
+                        type="button"
+                        onClick={handleRequestRefundAndEscalation}
+                        className="text-[11px] font-semibold text-neutral-500 hover:text-neutral-800"
+                        disabled={isSubmittingReport}
+                      >
+                        None of these work? Request 100% Instant Refund + $15 Credit
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <div className="space-y-4 text-center py-2">
+                    <div className="h-12 w-12 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto">
+                      <AlertTriangle className="h-6 w-6" />
+                    </div>
+                    <div className="space-y-1">
+                      <h4 className="font-bold text-sm text-neutral-900">
+                        No Compatible Spaces Available Nearby
+                      </h4>
+                      <p className="text-neutral-600 text-[11px] leading-relaxed max-w-sm mx-auto">
+                        All nearby parking bays are either currently reserved or do not meet your vehicle height clearance requirements.
+                      </p>
+                    </div>
+
+                    <div className="p-4 bg-amber-50 rounded-2xl border border-amber-200 text-left space-y-2 text-amber-900">
+                      <div className="flex items-center gap-1.5 font-bold text-xs">
+                        <ShieldCheck className="h-4 w-4 text-amber-600" />
+                        <span>ParkMate Guaranteed Resolution</span>
+                      </div>
+                      <p className="text-[11px] leading-relaxed">
+                        Under our Booking Recovery policy, when no valid replacement space exists, you are entitled to:
+                      </p>
+                      <ul className="text-[11px] list-disc list-inside space-y-1 font-semibold">
+                        <li>100% Immediate refund of your reservation fee</li>
+                        <li>$15.00 Inconvenience credit added to your account</li>
+                        <li>24/7 Priority support agent dispatch</li>
+                      </ul>
+                    </div>
+
+                    <Button
+                      variant="danger"
+                      className="w-full text-xs font-bold"
+                      onClick={handleRequestRefundAndEscalation}
+                      disabled={isSubmittingReport}
+                    >
+                      {isSubmittingReport ? "Processing Refund..." : "Authorize 100% Refund & Support Credit"}
+                    </Button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* STEP 3: Replacement Confirmed */}
+            {recoveryStep === "confirmed_replacement" && confirmedSpace && (
+              <div className="space-y-4 py-2 text-center">
+                <div className="h-14 w-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto animate-bounce">
+                  <CheckCircle2 className="h-8 w-8" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-bold text-base text-neutral-900">Replacement Space Confirmed!</h4>
+                  <p className="text-xs text-neutral-600">
+                    Your reservation has been transferred to {confirmedSpace.title} at $0.00 fee.
+                  </p>
+                </div>
+
+                <div className="p-4 bg-neutral-900 text-white rounded-3xl text-left space-y-3 font-mono">
+                  <div className="flex justify-between items-center border-b border-neutral-800 pb-2">
+                    <span className="text-[10px] text-neutral-400">NEW PASS CODE</span>
+                    <span className="text-lg font-bold text-emerald-400">{newPassPin}</span>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-neutral-400 block">NEW ADDRESS:</span>
+                    <span className="font-bold text-xs text-white block">{confirmedSpace.address}</span>
+                  </div>
+                  <div className="text-[11px] text-neutral-300 font-sans">
+                    Instructions: {confirmedSpace.accessInstructions || "Drive in and scan QR pass or enter PIN."}
+                  </div>
+                </div>
+
+                <Button
+                  variant="brand"
+                  className="w-full text-xs font-bold"
+                  onClick={() => setRecoveryBooking(null)}
+                >
+                  Done &bull; View Active Pass
+                </Button>
+              </div>
+            )}
+
+            {/* STEP 4: Refunded & Support Ticket */}
+            {recoveryStep === "refunded" && refundInfo && (
+              <div className="space-y-4 py-2 text-center">
+                <div className="h-14 w-14 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center mx-auto">
+                  <ShieldCheck className="h-8 w-8" />
+                </div>
+                <div className="space-y-1">
+                  <h4 className="font-bold text-base text-neutral-900">Refund &amp; Credit Issued</h4>
+                  <p className="text-xs text-neutral-600 leading-relaxed">
+                    {refundInfo.summary}
+                  </p>
+                </div>
+
+                <div className="p-4 bg-neutral-50 rounded-2xl border border-neutral-200 text-left space-y-2 font-mono text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-neutral-500 font-sans">Refund Amount:</span>
+                    <span className="font-bold text-neutral-900">{formatCurrency(refundInfo.refundAmount)}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-500 font-sans">ParkMate Credit:</span>
+                    <span className="font-bold text-emerald-600">+$15.00 Credit</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="text-neutral-500 font-sans">Support Ticket:</span>
+                    <span className="font-bold text-blue-600">{refundInfo.ticketId}</span>
+                  </div>
+                </div>
+
+                <Button
+                  variant="outline"
+                  className="w-full text-xs font-bold"
+                  onClick={() => setRecoveryBooking(null)}
+                >
+                  Close &bull; Return to Reservations
+                </Button>
+              </div>
+            )}
           </div>
         )}
       </Dialog>

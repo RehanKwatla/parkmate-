@@ -241,17 +241,56 @@ export const ListingPriceUpdateSchema = z.object({
 });
 
 // ==============================================================================
-// 5. Recovery & Saved Spaces
+// 5. Recovery, Incident Reporting & Moderation
 // ==============================================================================
+export const AccessProblemTypeSchema = z.enum([
+  "space_occupied",
+  "entrance_inaccessible",
+  "listing_details_incorrect",
+  "other",
+]);
+
+export type AccessProblemType = z.infer<typeof AccessProblemTypeSchema>;
+
+export const ReportAccessProblemSchema = z.object({
+  bookingId: z.string().min(1, "Booking ID is required"),
+  problemType: AccessProblemTypeSchema,
+  notes: z.string().trim().max(1000).optional(),
+  userCoordinates: z
+    .object({
+      lat: z.number(),
+      lng: z.number(),
+    })
+    .optional(),
+  isDemo: z.boolean().optional().default(false),
+});
+
+export const ConfirmReplacementSchema = z.object({
+  bookingId: z.string().min(1, "Booking ID is required"),
+  replacementSpaceId: z.string().min(1, "Replacement space ID is required"),
+  isDemo: z.boolean().optional().default(false),
+});
+
+export const UpdateReportStatusSchema = z.object({
+  status: z.enum(["open", "investigating", "resolved", "dismissed"]),
+  resolutionNotes: z.string().trim().max(1000).optional(),
+});
+
 export const RecoveryRequestSchema = z.object({
   bookingId: z.string().min(1, "Booking ID is required"),
   reason: z.string().trim().min(3, "Reason must be at least 3 characters"),
-  userCoordinates: z.object({
-    lat: z.number(),
-    lng: z.number(),
-  }).optional(),
+  problemType: AccessProblemTypeSchema.optional().default("space_occupied"),
+  notes: z.string().trim().max(1000).optional(),
+  userCoordinates: z
+    .object({
+      lat: z.number(),
+      lng: z.number(),
+    })
+    .optional(),
+  isDemo: z.boolean().optional().default(false),
 });
 
 export const SavedSpaceSchema = z.object({
   spaceId: z.string().min(1, "Space ID is required"),
 });
+

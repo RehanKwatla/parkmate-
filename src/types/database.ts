@@ -31,7 +31,8 @@ export type BookingStatus =
   | "completed"
   | "cancelled"
   | "refunded"
-  | "recovered";
+  | "recovered"
+  | "access_issue";
 export type PaymentStatus = "pending" | "paid" | "refunded" | "failed";
 export type EventType =
   | "status_change"

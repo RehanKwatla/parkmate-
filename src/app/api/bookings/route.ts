@@ -1,13 +1,15 @@
 import { NextResponse } from "next/server";
 import { BookingCreateSchema, BookingQuoteSchema } from "@/lib/validations";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
-import { MOCK_PARKING_SPACES, INITIAL_USER_BOOKINGS } from "@/lib/mock-data";
+import { MOCK_PARKING_SPACES } from "@/lib/mock-data";
 import {
   calculateBookingPrice,
   generateBookingReference,
   generateAccessCode,
   processSimulatedPayment,
   evaluateCancellationPolicy,
+  getSandboxBookings,
+  addSandboxBooking,
 } from "@/lib/booking-engine";
 import { evaluateVehicleCompatibility, DEFAULT_SAFETY_MARGINS } from "@/lib/compatibility-engine";
 import { mapDbSpaceToParkingSpace, Booking, ParkingSpace, VehicleType } from "@/types/parking";
@@ -51,7 +53,7 @@ interface BookingWithSpaceRow {
 }
 
 // In-memory module store to preserve bookings during sandbox sessions across page refreshes
-const SANDBOX_BOOKINGS: Booking[] = [...INITIAL_USER_BOOKINGS];
+const SANDBOX_BOOKINGS = getSandboxBookings();
 
 export async function GET(request: Request) {
   try {
@@ -555,7 +557,7 @@ export async function POST(request: Request) {
     };
 
     // Prepend to sandbox store so it persists on page refreshes
-    SANDBOX_BOOKINGS.unshift(newBooking);
+    addSandboxBooking(newBooking);
 
     return NextResponse.json(
       {

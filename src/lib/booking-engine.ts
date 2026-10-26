@@ -9,6 +9,8 @@
 // ==============================================================================
 
 import { BookingStatus, PaymentStatus } from "@/types/database";
+import { Booking } from "@/types/parking";
+import { INITIAL_USER_BOOKINGS } from "@/lib/mock-data";
 
 export interface PriceBreakdown {
   durationHours: number;
@@ -290,3 +292,79 @@ export function processSimulatedPayment(params: {
     method: params.paymentMethod || "test_card_visa",
   };
 }
+
+// ==============================================================================
+// Shared In-Memory Sandbox Persistence
+// Preserves sandbox bookings and reports across all Next.js route handlers
+// ==============================================================================
+
+export interface InMemoryReport {
+  id: string;
+  bookingId: string;
+  spaceId: string;
+  reporterId: string;
+  problemType: string;
+  description: string;
+  status: "open" | "investigating" | "resolved" | "dismissed";
+  resolutionNotes?: string;
+  createdAt: string;
+  isDemo: boolean;
+}
+
+const GLOBAL_SANDBOX_BOOKINGS: Booking[] = [...INITIAL_USER_BOOKINGS];
+const GLOBAL_SANDBOX_REPORTS: InMemoryReport[] = [
+  {
+    id: "rep-demo-01",
+    bookingId: "bk-demo-fail",
+    spaceId: "sp-101",
+    reporterId: "user-demo",
+    problemType: "space_occupied",
+    description: "Another car is parked in reserved space #A12 upon arrival.",
+    status: "open",
+    createdAt: new Date(Date.now() - 15 * 60 * 1000).toISOString(),
+    isDemo: true,
+  },
+];
+
+export function getSandboxBookings(): Booking[] {
+  return GLOBAL_SANDBOX_BOOKINGS;
+}
+
+export function findSandboxBooking(id: string): Booking | undefined {
+  return GLOBAL_SANDBOX_BOOKINGS.find((b) => b.id === id);
+}
+
+export function addSandboxBooking(booking: Booking): void {
+  const existingIdx = GLOBAL_SANDBOX_BOOKINGS.findIndex((b) => b.id === booking.id);
+  if (existingIdx >= 0) {
+    GLOBAL_SANDBOX_BOOKINGS[existingIdx] = booking;
+  } else {
+    GLOBAL_SANDBOX_BOOKINGS.unshift(booking);
+  }
+}
+
+export function updateSandboxBooking(id: string, updates: Partial<Booking>): Booking | undefined {
+  const booking = GLOBAL_SANDBOX_BOOKINGS.find((b) => b.id === id);
+  if (!booking) return undefined;
+  Object.assign(booking, updates);
+  return booking;
+}
+
+export function getSandboxReports(): InMemoryReport[] {
+  return GLOBAL_SANDBOX_REPORTS;
+}
+
+export function addSandboxReport(report: InMemoryReport): void {
+  GLOBAL_SANDBOX_REPORTS.unshift(report);
+}
+
+export function updateSandboxReport(
+  id: string,
+  updates: Partial<InMemoryReport>
+): InMemoryReport | undefined {
+  const rep = GLOBAL_SANDBOX_REPORTS.find((r) => r.id === id);
+  if (!rep) return undefined;
+  Object.assign(rep, updates);
+  return rep;
+}
+
