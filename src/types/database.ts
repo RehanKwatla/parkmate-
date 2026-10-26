@@ -102,6 +102,7 @@ export interface Database {
           longitude: number;
           price_per_hour: number;
           price_per_day: number;
+          price_per_month: number | null;
           category: SpaceCategory;
           photos: string[];
           rating: number;
@@ -115,6 +116,12 @@ export interface Database {
           walking_distance: string;
           max_vehicle_type: VehicleType;
           clearance_feet: number;
+          height_clearance_inches: number | null;
+          space_dimensions: string | null;
+          is_accessible: boolean;
+          is_authorized: boolean;
+          authorized_at: string | null;
+          draft_step: number | null;
           access_type: AccessType;
           access_instructions: string;
           security_features: string[];
@@ -137,6 +144,7 @@ export interface Database {
           longitude: number;
           price_per_hour: number;
           price_per_day: number;
+          price_per_month?: number | null;
           category?: SpaceCategory;
           photos?: string[];
           rating?: number;
@@ -150,6 +158,12 @@ export interface Database {
           walking_distance?: string;
           max_vehicle_type?: VehicleType;
           clearance_feet: number;
+          height_clearance_inches?: number | null;
+          space_dimensions?: string | null;
+          is_accessible?: boolean;
+          is_authorized?: boolean;
+          authorized_at?: string | null;
+          draft_step?: number | null;
           access_type?: AccessType;
           access_instructions?: string;
           security_features?: string[];
@@ -172,6 +186,7 @@ export interface Database {
           longitude?: number;
           price_per_hour?: number;
           price_per_day?: number;
+          price_per_month?: number | null;
           category?: SpaceCategory;
           photos?: string[];
           rating?: number;
@@ -185,6 +200,12 @@ export interface Database {
           walking_distance?: string;
           max_vehicle_type?: VehicleType;
           clearance_feet?: number;
+          height_clearance_inches?: number | null;
+          space_dimensions?: string | null;
+          is_accessible?: boolean;
+          is_authorized?: boolean;
+          authorized_at?: string | null;
+          draft_step?: number | null;
           access_type?: AccessType;
           access_instructions?: string;
           security_features?: string[];
@@ -214,6 +235,7 @@ export interface Database {
           end_time: string;
           is_blocked: boolean;
           specific_date: string | null;
+          reason: string | null;
           created_at: string;
           updated_at: string;
         };
@@ -225,6 +247,7 @@ export interface Database {
           end_time: string;
           is_blocked?: boolean;
           specific_date?: string | null;
+          reason?: string | null;
           created_at?: string;
           updated_at?: string;
         };
@@ -236,6 +259,7 @@ export interface Database {
           end_time?: string;
           is_blocked?: boolean;
           specific_date?: string | null;
+          reason?: string | null;
           created_at?: string;
           updated_at?: string;
         };

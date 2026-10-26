@@ -17,7 +17,8 @@ import {
   CheckCircle2, 
   ChevronRight, 
   Footprints,
-  UserCheck
+  UserCheck,
+  Clock
 } from "lucide-react";
 import { VEHICLE_PRESETS } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
@@ -170,8 +171,8 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
               </Badge>
             ) : (
               <Badge variant="warning" className="gap-1 py-1 px-3">
-                <AlertTriangle className="h-3.5 w-3.5" />
-                Seeded Demo Listing
+                <Clock className="h-3.5 w-3.5" />
+                Pending Host Verification (Admin Review)
               </Badge>
             )}
 

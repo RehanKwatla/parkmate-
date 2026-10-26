@@ -45,6 +45,7 @@ export interface ParkingSpace {
   };
   pricePerHour: number;
   pricePerDay: number;
+  pricePerMonth?: number;
   category: SpaceCategory;
   images: string[];
   rating: number;
@@ -54,6 +55,13 @@ export interface ParkingSpace {
   evChargerType?: string;
   isVerified: boolean;
   isDemoSeed: boolean;
+  publicationStatus?: "draft" | "published" | "paused" | "archived";
+  verificationStatus?: "pending" | "verified" | "rejected";
+  isAuthorized?: boolean;
+  spaceDimensions?: string;
+  heightClearanceInches?: number;
+  isAccessible?: boolean;
+  draftStep?: number;
   walkingDistance: string;
   maxVehicleType: VehicleType;
   clearanceFeet: number;
@@ -148,6 +156,7 @@ export function mapDbSpaceToParkingSpace(
     },
     pricePerHour: Number(dbSpace.price_per_hour),
     pricePerDay: Number(dbSpace.price_per_day),
+    pricePerMonth: dbSpace.price_per_month ? Number(dbSpace.price_per_month) : undefined,
     category: dbSpace.category as SpaceCategory,
     images: dbSpace.photos && dbSpace.photos.length > 0 ? dbSpace.photos : [
       "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80"
@@ -159,6 +168,13 @@ export function mapDbSpaceToParkingSpace(
     evChargerType: dbSpace.ev_charger_type || undefined,
     isVerified: dbSpace.verification_status === "verified",
     isDemoSeed: dbSpace.is_demo_seed,
+    publicationStatus: dbSpace.publication_status,
+    verificationStatus: dbSpace.verification_status,
+    isAuthorized: dbSpace.is_authorized,
+    spaceDimensions: dbSpace.space_dimensions || undefined,
+    heightClearanceInches: dbSpace.height_clearance_inches ? Number(dbSpace.height_clearance_inches) : undefined,
+    isAccessible: dbSpace.is_accessible,
+    draftStep: dbSpace.draft_step || 1,
     walkingDistance: dbSpace.walking_distance,
     maxVehicleType: dbSpace.max_vehicle_type as VehicleType,
     clearanceFeet: Number(dbSpace.clearance_feet),

@@ -63,6 +63,13 @@ The migrations are located in the `supabase/migrations/` directory:
    - Seeds initial verified parking spaces across San Francisco (Downtown Garage, Nob Hill Driveway, Moscone Executive Deck, SFO Carport, Valencia Carport, Chase Center Deck).
    - Seeds verified host profiles and default availability schedules.
 
+3. **`20261027000003_owner_workflow.sql`**:
+   - Adds `price_per_month`, `height_clearance_inches`, `space_dimensions`, `is_accessible`, `is_authorized`, `authorized_at`, and `draft_step` columns to `parking_spaces`.
+   - Adds `reason` column to `availability_rules`.
+   - Updates RLS policy to allow public search discovery of published spaces.
+   - Defines `block_space_availability` and `check_availability_conflicts` PostgreSQL functions with conflict prevention.
+   - Implements `review_space_verification` for admin deed review.
+
 ### How to Apply Migrations:
 
 #### Option A: Supabase Dashboard SQL Editor (Quickest)
@@ -70,6 +77,7 @@ The migrations are located in the `supabase/migrations/` directory:
 2. Go to **SQL Editor** in the left sidebar.
 3. Open `supabase/migrations/20261027000001_parkmate_core.sql`, copy all contents, paste into the editor, and click **Run**.
 4. Open `supabase/migrations/20261027000002_seed_demo_data.sql`, paste into the editor, and click **Run**.
+5. Open `supabase/migrations/20261027000003_owner_workflow.sql`, paste into the editor, and click **Run**.
 
 #### Option B: Supabase CLI
 ```bash
@@ -85,7 +93,7 @@ npx supabase db push
 | Table | SELECT | INSERT | UPDATE | DELETE |
 |---|---|---|---|---|
 | `profiles` | Public read | `auth.uid() = id` | `auth.uid() = id` (no admin promotion) | Restricted |
-| `parking_spaces` | Published & verified OR space owner | `auth.uid() = owner_id` | `auth.uid() = owner_id` | `auth.uid() = owner_id` |
+| `parking_spaces` | Published OR space owner | `auth.uid() = owner_id` | `auth.uid() = owner_id` | `auth.uid() = owner_id` |
 | `availability_rules`| Published space OR space owner | Space owner | Space owner | Space owner |
 | `bookings` | Driver OR space owner | `auth.uid() = driver_id` | Driver OR space owner | Restricted |
 | `booking_events` | Booking participants | Booking participants | Restricted | Restricted |
@@ -97,20 +105,27 @@ npx supabase db push
 
 ## 5. Security & Verification Tests
 
-Run the security isolation and authorization test script at any time:
+### 1. Owner Workflow & Conflict Prevention Suite
+```bash
+node scripts/test-owner-workflow.mjs
+```
+Verifies:
+- Saving and resuming draft spaces at any step.
+- Mandatory legal owner authorization confirmation to publish.
+- Enforcing `pending` verification status for newly published listings (cannot claim verified until admin review).
+- Public marketplace search visibility of published spaces.
+- Cross-account protection: User B cannot modify User A's listing (403 Forbidden).
+- Conflict prevention: Confirmed driver bookings block conflicting owner unavailability (409 Conflict).
+- Admin verification approval workflow.
+
+### 2. Core Authorization & Price Tampering Suite
 ```bash
 node scripts/test-authorization.mjs
 ```
-
-Or query the test endpoint while running the Next.js server:
-```bash
-curl http://localhost:3000/api/test-auth-isolation
-```
-
-Tests verify:
-1. One space host cannot modify another space host's listings.
-2. Drivers cannot alter space listings.
-3. Users cannot alter or cancel unrelated drivers' bookings.
-4. Users cannot escalate their role to `admin`.
-5. Server recalculates and enforces prices regardless of client payload.
-6. Temporal overlaps on identical spots are detected and blocked.
+Verifies:
+- Host A cannot modify Host B's spaces.
+- Drivers cannot modify space listings.
+- Unrelated drivers cannot alter another driver's bookings.
+- Privilege escalation prevention (users cannot promote to `admin`).
+- Server-side price authority (ignores client-supplied totals).
+- Temporal exclusion constraints preventing overlapping bookings.
