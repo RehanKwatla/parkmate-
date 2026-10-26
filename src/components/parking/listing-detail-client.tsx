@@ -40,6 +40,8 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
   const [isSaved, setIsSaved] = React.useState(false);
   const [isBookingModalOpen, setIsBookingModalOpen] = React.useState(false);
   const [isBookingConfirmed, setIsBookingConfirmed] = React.useState(false);
+  const [isSubmitting, setIsSubmitting] = React.useState(false);
+  const [bookingError, setBookingError] = React.useState<string | null>(null);
 
   // Pricing calculations
   const hourlySubtotal = space.pricePerHour * selectedDurationHours;
@@ -51,12 +53,74 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
   const testedPreset = VEHICLE_PRESETS.find((v) => v.id === testedVehicle) || VEHICLE_PRESETS[0];
   const isCompatible = space.clearanceFeet >= testedPreset.heightFeet;
 
-  const handleConfirmReservation = () => {
-    setIsBookingConfirmed(true);
-    setTimeout(() => {
-      setIsBookingModalOpen(false);
-      router.push("/bookings");
-    }, 1800);
+  // Check saved state on mount
+  React.useEffect(() => {
+    fetch("/api/saved-spaces")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.savedSpaceIds && data.savedSpaceIds.includes(space.id)) {
+          setIsSaved(true);
+        }
+      })
+      .catch(() => {});
+  }, [space.id]);
+
+  const toggleSaveSpace = async () => {
+    const nextState = !isSaved;
+    setIsSaved(nextState);
+    try {
+      if (nextState) {
+        await fetch("/api/saved-spaces", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ spaceId: space.id }),
+        });
+      } else {
+        await fetch(`/api/saved-spaces?spaceId=${space.id}`, {
+          method: "DELETE",
+        });
+      }
+    } catch {
+      // Keep UI responsive even if network fails
+    }
+  };
+
+  const handleConfirmReservation = async () => {
+    setIsSubmitting(true);
+    setBookingError(null);
+
+    try {
+      const response = await fetch("/api/bookings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          spaceId: space.id,
+          durationHours: selectedDurationHours,
+          vehicleModel: `${testedPreset.name} (Registered)`,
+          vehicleType: testedVehicle,
+          licensePlate: "7XYZ899",
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        setBookingError(data.error || "Failed to reserve parking space.");
+        setIsSubmitting(false);
+        return;
+      }
+
+      setIsBookingConfirmed(true);
+      setTimeout(() => {
+        setIsBookingModalOpen(false);
+        router.push("/bookings");
+      }, 1800);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Network error reserving space.";
+      setBookingError(message);
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -77,7 +141,7 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
           <div className="flex items-center gap-4">
             <button
               type="button"
-              onClick={() => setIsSaved(!isSaved)}
+              onClick={toggleSaveSpace}
               className="flex items-center gap-1.5 font-bold hover:text-[#222222] text-[#717171]"
             >
               <Heart className={`h-4 w-4 ${isSaved ? "fill-[#FF5A5F] text-[#FF5A5F]" : ""}`} />
@@ -462,6 +526,13 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
               </div>
             </div>
 
+            {bookingError && (
+              <div className="p-3 bg-red-50 text-red-800 rounded-xl text-[11px] border border-red-200">
+                <p className="font-bold">Reservation Failed</p>
+                <p>{bookingError}</p>
+              </div>
+            )}
+
             <div className="p-3 bg-emerald-50 text-emerald-800 rounded-xl text-[11px] flex items-center gap-2">
               <ShieldCheck className="h-4 w-4 shrink-0 text-emerald-600" />
               <span>Includes Automatic Recovery Protection if spot is blocked upon arrival.</span>
@@ -472,6 +543,7 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
                 variant="outline"
                 className="w-1/2"
                 onClick={() => setIsBookingModalOpen(false)}
+                disabled={isSubmitting}
               >
                 Cancel
               </Button>
@@ -479,8 +551,9 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
                 variant="brand"
                 className="w-1/2"
                 onClick={handleConfirmReservation}
+                disabled={isSubmitting}
               >
-                Confirm &amp; Pay
+                {isSubmitting ? "Processing..." : "Confirm & Pay"}
               </Button>
             </div>
           </div>

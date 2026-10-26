@@ -15,22 +15,34 @@ import { ParkingCard } from "@/components/parking/parking-card";
 import { DifferentiatorsSection } from "@/components/parking/differentiator-banner";
 import { HostCtaSection } from "@/components/parking/host-cta-section";
 import { MOCK_PARKING_SPACES } from "@/lib/mock-data";
-import { SpaceCategory } from "@/types/parking";
+import { SpaceCategory, ParkingSpace } from "@/types/parking";
 import { Button } from "@/components/ui/button";
 
 export default function HomePage() {
   const [selectedCategory, setSelectedCategory] = React.useState<SpaceCategory>("all");
   const [selectedCityFilter, setSelectedCityFilter] = React.useState<string>("all");
+  const [spaces, setSpaces] = React.useState<ParkingSpace[]>(MOCK_PARKING_SPACES);
+
+  React.useEffect(() => {
+    fetch("/api/listings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.data && data.data.length > 0) {
+          setSpaces(data.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const filteredSpaces = React.useMemo(() => {
-    return MOCK_PARKING_SPACES.filter((space) => {
+    return spaces.filter((space) => {
       const matchCategory =
         selectedCategory === "all" || space.category === selectedCategory;
       const matchCity =
         selectedCityFilter === "all" || space.neighborhood.toLowerCase().includes(selectedCityFilter.toLowerCase());
       return matchCategory && matchCity;
     });
-  }, [selectedCategory, selectedCityFilter]);
+  }, [spaces, selectedCategory, selectedCityFilter]);
 
   const neighborhoods = [
     { id: "all", name: "All San Francisco" },

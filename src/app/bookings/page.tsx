@@ -36,6 +36,28 @@ export default function BookingsPage() {
   // Digital Pass QR Modal
   const [passModalBooking, setPassModalBooking] = React.useState<Booking | null>(null);
 
+  // Fetch real bookings on mount
+  React.useEffect(() => {
+    let active = true;
+    async function loadBookings() {
+      try {
+        const res = await fetch("/api/bookings");
+        if (res.ok) {
+          const data = await res.json();
+          if (active && data.bookings && data.bookings.length > 0) {
+            setBookings(data.bookings);
+          }
+        }
+      } catch {
+        // Fallback to initial
+      }
+    }
+    loadBookings();
+    return () => {
+      active = false;
+    };
+  }, []);
+
   // Filter bookings by tab
   const displayedBookings = bookings.filter((b) => {
     if (activeTab === "active") return b.status === "active" || b.status === "upcoming" || b.status === "recovered";
@@ -43,16 +65,35 @@ export default function BookingsPage() {
   });
 
   // Handle Flexible Extension execution
-  const handleConfirmExtension = () => {
+  const handleConfirmExtension = async () => {
     if (!extensionBooking) return;
     const additionalCost = extensionBooking.hourlyRate * extensionHours;
     
+    try {
+      const res = await fetch(`/api/bookings/${extensionBooking.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action: "extend",
+          additionalHours: extensionHours,
+        }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert(err.error || "Extension could not be processed.");
+        return;
+      }
+    } catch {
+      // Proceed with optimistic update
+    }
+
     setBookings((prev) =>
       prev.map((b) => {
         if (b.id === extensionBooking.id) {
           return {
             ...b,
-            endTime: `Extended +${extensionHours}hr (Today, 5:00 PM)`,
+            endTime: `Extended +${extensionHours}hr`,
             totalPrice: b.totalPrice + additionalCost,
           };
         }
@@ -67,14 +108,23 @@ export default function BookingsPage() {
   };
 
   // Handle Booking Recovery execution (Differentiator 1)
-  const handleTriggerRecovery = () => {
+  const handleTriggerRecovery = async () => {
     if (!recoveryBooking) return;
     setIsRecovering(true);
 
-    setTimeout(() => {
-      const backup = MOCK_RECOVERY_ALTERNATIVES[0];
+    try {
+      const res = await fetch("/api/recovery", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          bookingId: recoveryBooking.id,
+          reason: "Reserved parking space blocked upon arrival by unauthorized vehicle.",
+        }),
+      });
+
+      const data = await res.json();
+      const backup = data.alternativeSpace || MOCK_RECOVERY_ALTERNATIVES[0];
       setRecoveredSpace(backup);
-      setIsRecovering(false);
 
       // Update state to recovered space
       setBookings((prev) =>
@@ -85,7 +135,7 @@ export default function BookingsPage() {
               status: "recovered",
               spaceTitle: `[RECOVERED] ${backup.title}`,
               spaceAddress: backup.address,
-              spaceImage: backup.images[0],
+              spaceImage: backup.images?.[0] || backup.photos?.[0] || b.spaceImage,
               accessCode: "REC-PASS-FREE-772",
               recoveryStatus: "recovered",
             };
@@ -93,7 +143,12 @@ export default function BookingsPage() {
           return b;
         })
       );
-    }, 1800);
+    } catch {
+      const backup = MOCK_RECOVERY_ALTERNATIVES[0];
+      setRecoveredSpace(backup);
+    } finally {
+      setIsRecovering(false);
+    }
   };
 
   return (

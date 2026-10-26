@@ -5,7 +5,6 @@ import Link from "next/link";
 import { 
   TrendingUp, 
   DollarSign, 
-  Calendar, 
   Plus, 
   ToggleLeft, 
   ToggleRight, 
@@ -13,19 +12,109 @@ import {
   ShieldCheck, 
   ArrowUpRight, 
   BarChart3, 
-  CalendarCheck2
+  CalendarCheck2,
+  CheckCircle2,
+  AlertCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import { ParkingImage } from "@/components/ui/parking-image";
+import { useAuth } from "@/lib/auth-context";
+import { ParkingSpace, VehicleType, SpaceCategory } from "@/types/parking";
+
+const DEFAULT_OWNER_SPACES: ParkingSpace[] = [
+  {
+    id: "sp-101",
+    title: "Downtown Secure Garage Bay A12",
+    description: "High speed gated garage.",
+    address: "245 Market St",
+    neighborhood: "Financial District",
+    city: "San Francisco",
+    coordinates: { lat: 37.7915, lng: -122.3995 },
+    pricePerHour: 7.50,
+    pricePerDay: 42.00,
+    category: "covered",
+    images: ["https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=400&q=80"],
+    rating: 4.95,
+    reviewCount: 128,
+    isCovered: true,
+    hasEvCharging: true,
+    isVerified: true,
+    isDemoSeed: true,
+    walkingDistance: "2 min walk",
+    maxVehicleType: "suv",
+    clearanceFeet: 7.2,
+    accessType: "qr_scanner",
+    accessInstructions: "Scan pass",
+    securityFeatures: ["CCTV", "Bright Lights"],
+    host: { name: "Marcus Vance", avatar: "", rating: 4.98, joinedYear: 2023, responseTime: "5m", isSuperhost: true },
+    rules: [],
+    recoveryGuaranteed: true,
+    flexibleExtensionSupported: true,
+    availableSlotsCount: 1,
+  },
+  {
+    id: "sp-102",
+    title: "Residential Paved Driveway (Nob Hill)",
+    description: "Private residential driveway with Tesla wall connector.",
+    address: "712 Pine Ave",
+    neighborhood: "Nob Hill",
+    city: "San Francisco",
+    coordinates: { lat: 37.7910, lng: -122.4110 },
+    pricePerHour: 5.00,
+    pricePerDay: 28.00,
+    category: "ev_charging",
+    images: ["https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?auto=format&fit=crop&w=400&q=80"],
+    rating: 4.88,
+    reviewCount: 64,
+    isCovered: false,
+    hasEvCharging: true,
+    isVerified: true,
+    isDemoSeed: true,
+    walkingDistance: "5 min walk",
+    maxVehicleType: "truck",
+    clearanceFeet: 12.0,
+    accessType: "instant_keypad",
+    accessInstructions: "Park in bay",
+    securityFeatures: ["Ring Cam"],
+    host: { name: "Elena Rostova", avatar: "", rating: 4.92, joinedYear: 2024, responseTime: "5m", isSuperhost: true },
+    rules: [],
+    recoveryGuaranteed: true,
+    flexibleExtensionSupported: true,
+    availableSlotsCount: 1,
+  },
+];
 
 export default function OwnerDashboardPage() {
+  const { user } = useAuth();
   const [smartShareActive, setSmartShareActive] = React.useState(true);
   const [demandMultiplier] = React.useState(1.4);
   const [selectedDays, setSelectedDays] = React.useState<string[]>(["Mon", "Tue", "Wed", "Thu", "Fri"]);
   const [shareStart, setShareStart] = React.useState("08:30");
   const [shareEnd, setShareEnd] = React.useState("17:30");
-  const [spacePaused, setSpacePaused] = React.useState(false);
+  const [spacePausedMap, setSpacePausedMap] = React.useState<Record<string, boolean>>({});
+
+  // Listings state
+  const [listings, setListings] = React.useState<ParkingSpace[]>(DEFAULT_OWNER_SPACES);
+
+  // Add Space Modal state
+  const [isAddModalOpen, setIsAddModalOpen] = React.useState(false);
+  const [newTitle, setNewTitle] = React.useState("");
+  const [newDescription, setNewDescription] = React.useState("");
+  const [newAddress, setNewAddress] = React.useState("");
+  const [newNeighborhood, setNewNeighborhood] = React.useState("Financial District");
+  const [newPricePerHour, setNewPricePerHour] = React.useState("6.50");
+  const [newClearanceFeet, setNewClearanceFeet] = React.useState("7.5");
+  const [newCategory, setNewCategory] = React.useState<SpaceCategory>("covered");
+  const [newMaxVehicle, setNewMaxVehicle] = React.useState<VehicleType>("suv");
+  const [newPhotoUrl, setNewPhotoUrl] = React.useState(
+    "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80"
+  );
+  const [isSubmittingNewSpace, setIsSubmittingNewSpace] = React.useState(false);
+  const [addError, setAddError] = React.useState<string | null>(null);
+  const [addSuccess, setAddSuccess] = React.useState(false);
 
   const daysOfWeek = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -33,6 +122,100 @@ export default function OwnerDashboardPage() {
     setSelectedDays((prev) =>
       prev.includes(day) ? prev.filter((d) => d !== day) : [...prev, day]
     );
+  };
+
+  React.useEffect(() => {
+    let active = true;
+    async function init() {
+      try {
+        const res = await fetch("/api/listings?owner=me");
+        if (res.ok) {
+          const data = await res.json();
+          if (active && data.data && data.data.length > 0) {
+            setListings(data.data);
+          }
+        }
+      } catch {
+        // Keep defaults
+      }
+    }
+    init();
+    return () => {
+      active = false;
+    };
+  }, [user]);
+
+  const toggleSpacePause = async (spaceId: string) => {
+    const isCurrentlyPaused = spacePausedMap[spaceId] ?? false;
+    const nextState = !isCurrentlyPaused;
+    setSpacePausedMap((prev) => ({ ...prev, [spaceId]: nextState }));
+
+    try {
+      await fetch(`/api/listings/${spaceId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          publicationStatus: nextState ? "paused" : "published",
+        }),
+      });
+    } catch {
+      // Optimistic update
+    }
+  };
+
+  const handleCreateSpace = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmittingNewSpace(true);
+    setAddError(null);
+
+    try {
+      const response = await fetch("/api/listings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newTitle,
+          description: newDescription,
+          address: newAddress,
+          neighborhood: newNeighborhood,
+          city: "San Francisco",
+          latitude: 37.7749,
+          longitude: -122.4194,
+          pricePerHour: parseFloat(newPricePerHour),
+          pricePerDay: parseFloat(newPricePerHour) * 6.5,
+          category: newCategory,
+          photos: [newPhotoUrl],
+          isCovered: newCategory === "covered",
+          hasEvCharging: newCategory === "ev_charging",
+          clearanceFeet: parseFloat(newClearanceFeet),
+          maxVehicleType: newMaxVehicle,
+          accessType: "instant_keypad",
+          accessInstructions: "Park in reserved space. Keycode provided upon booking.",
+          securityFeatures: ["CCTV Security", "Bright Lighting"],
+          rules: ["No overnight idling", "Display ParkMate Pass"],
+        }),
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        setAddError(data.error || "Failed to create listing.");
+        setIsSubmittingNewSpace(false);
+        return;
+      }
+
+      setAddSuccess(true);
+      if (data.space) {
+        setListings((prev) => [data.space, ...prev]);
+      }
+      setTimeout(() => {
+        setIsAddModalOpen(false);
+        setAddSuccess(false);
+      }, 1500);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Network error creating space.";
+      setAddError(message);
+    } finally {
+      setIsSubmittingNewSpace(false);
+    }
   };
 
   return (
@@ -59,7 +242,11 @@ export default function OwnerDashboardPage() {
                 View Public Listings
               </Button>
             </Link>
-            <Button size="sm" className="rounded-full shadow-xs">
+            <Button
+              size="sm"
+              onClick={() => setIsAddModalOpen(true)}
+              className="rounded-full shadow-xs"
+            >
               <Plus className="h-4 w-4 mr-1.5" />
               Add New Parking Space
             </Button>
@@ -98,55 +285,50 @@ export default function OwnerDashboardPage() {
             <div className="flex items-center justify-between text-[#717171] mb-2 text-xs font-bold uppercase tracking-wider">
               <span>Reservations</span>
               <div className="h-8 w-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                <Calendar className="h-4 w-4" />
+                <CalendarCheck2 className="h-4 w-4" />
               </div>
             </div>
-            <p className="text-3xl font-extrabold text-[#222222]">46 Bookings</p>
-            <p className="text-xs text-[#717171] font-medium mt-2">
-              0 cancellations &middot; 4.96 rating
-            </p>
+            <p className="text-3xl font-extrabold text-[#222222]">42</p>
+            <p className="text-xs text-[#717171] mt-2">Active this billing cycle</p>
           </div>
 
           <div className="rounded-3xl bg-white p-6 border border-[#EAEAEA] shadow-xs">
             <div className="flex items-center justify-between text-[#717171] mb-2 text-xs font-bold uppercase tracking-wider">
-              <span>Active Spaces</span>
+              <span>Host Reputation</span>
               <div className="h-8 w-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
                 <ShieldCheck className="h-4 w-4" />
               </div>
             </div>
-            <p className="text-3xl font-extrabold text-[#222222]">2 Active</p>
-            <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1 mt-2">
-              All spaces verified &amp; protected
-            </p>
+            <p className="text-3xl font-extrabold text-[#222222]">4.95 &#9733;</p>
+            <p className="text-xs text-emerald-600 font-semibold mt-2">Superhost Verified</p>
           </div>
         </div>
 
-        {/* 2 Main Feature Panels: Smart Space Sharing + Demand Prediction */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Differentiator 5: Smart Space Sharing Scheduler */}
-          <div className="rounded-3xl bg-white p-7 border border-[#EAEAEA] shadow-sm space-y-6">
+        {/* 2 Feature Cards: Smart Commute Auto-Share & Demand Prediction */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-7">
+          {/* Differentiator 3: Smart Commute Auto-Share Schedule */}
+          <div className="rounded-3xl bg-white p-7 border border-[#EAEAEA] shadow-xs space-y-6">
             <div className="flex items-start justify-between">
               <div>
                 <div className="inline-flex items-center gap-1 text-[11px] font-bold text-purple-700 bg-purple-50 px-2.5 py-0.5 rounded-full mb-1.5">
-                  <CalendarCheck2 className="h-3 w-3" />
-                  Differentiator 5
+                  <Sparkles className="h-3 w-3" />
+                  Differentiator 3
                 </div>
                 <h3 className="text-xl font-extrabold text-[#222222]">
-                  Smart Space Sharing Scheduler
+                  Smart Commute Auto-Share
                 </h3>
                 <p className="text-xs text-[#717171] mt-0.5">
-                  Publish idle hours while you are at work. Spot locks automatically before you return.
+                  Monetize your empty driveway automatically during your work commute hours.
                 </p>
               </div>
 
               <button
                 type="button"
                 onClick={() => setSmartShareActive(!smartShareActive)}
-                className="text-2xl text-[#222222] transition-colors"
-                aria-label="Toggle Smart Space Sharing"
+                className="focus:outline-none"
               >
                 {smartShareActive ? (
-                  <ToggleRight className="h-8 w-8 text-[#10B981]" />
+                  <ToggleRight className="h-8 w-8 text-[#FF5A5F]" />
                 ) : (
                   <ToggleLeft className="h-8 w-8 text-[#999999]" />
                 )}
@@ -214,7 +396,7 @@ export default function OwnerDashboardPage() {
           </div>
 
           {/* Differentiator 4: Demand Prediction & Dynamic Pricing */}
-          <div className="rounded-3xl bg-white p-7 border border-[#EAEAEA] shadow-sm space-y-6">
+          <div className="rounded-3xl bg-white p-7 border border-[#EAEAEA] shadow-xs space-y-6">
             <div>
               <div className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2.5 py-0.5 rounded-full mb-1.5">
                 <TrendingUp className="h-3 w-3" />
@@ -263,62 +445,212 @@ export default function OwnerDashboardPage() {
         <div className="rounded-3xl bg-white border border-[#EAEAEA] p-7 shadow-xs space-y-4">
           <div className="flex items-center justify-between">
             <h3 className="font-bold text-lg text-[#222222]">Your Listed Spaces</h3>
-            <span className="text-xs text-[#717171]">1 of 2 spots occupied right now</span>
+            <span className="text-xs text-[#717171]">{listings.length} managed spaces</span>
           </div>
 
           <div className="divide-y divide-[#F0F0F0] text-xs">
-            <div className="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <ParkingImage
-                  src="https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=400&q=80"
-                  alt="Garage space"
-                  className="h-14 w-16 rounded-xl object-cover"
-                />
-                <div>
-                  <h4 className="font-bold text-[#222222] text-sm">Downtown Secure Garage Bay A12</h4>
-                  <p className="text-[#717171]">245 Market St &middot; Clearance: 7.2 ft &middot; Level 2 EV</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <span className="font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full text-[11px]">
-                  Driver Parked (Audi Q5)
-                </span>
-                <span className="font-extrabold text-sm">$7.50 / hr</span>
-              </div>
-            </div>
-
-            <div className="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <ParkingImage
-                  src="https://images.unsplash.com/photo-1573348722427-f1d6819fdf98?auto=format&fit=crop&w=400&q=80"
-                  alt="Driveway space"
-                  className="h-14 w-16 rounded-xl object-cover"
-                />
-                <div>
-                  <h4 className="font-bold text-[#222222] text-sm">Residential Paved Driveway (Nob Hill)</h4>
-                  <p className="text-[#717171]">712 Pine Ave &middot; Tesla Gen 3 Charger</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-3">
-                <button
-                  type="button"
-                  onClick={() => setSpacePaused(!spacePaused)}
-                  className={`px-3 py-1.5 rounded-xl font-bold text-xs border transition-colors ${
-                    spacePaused
-                      ? "bg-amber-50 text-amber-800 border-amber-300"
-                      : "bg-[#222222] text-white border-[#222222]"
-                  }`}
+            {listings.map((space) => {
+              const isPaused = spacePausedMap[space.id] ?? false;
+              return (
+                <div
+                  key={space.id}
+                  className="py-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4"
                 >
-                  {spacePaused ? "Paused" : "Active & Accepting"}
-                </button>
-                <span className="font-extrabold text-sm">$5.00 / hr</span>
-              </div>
-            </div>
+                  <div className="flex items-center gap-3">
+                    <ParkingImage
+                      src={space.images?.[0] || "https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=400&q=80"}
+                      alt={space.title}
+                      className="h-14 w-16 rounded-xl object-cover"
+                    />
+                    <div>
+                      <h4 className="font-bold text-[#222222] text-sm">{space.title}</h4>
+                      <p className="text-[#717171]">
+                        {space.address} &middot; Clearance: {space.clearanceFeet} ft &middot; Max: {space.maxVehicleType.toUpperCase()}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <button
+                      type="button"
+                      onClick={() => toggleSpacePause(space.id)}
+                      className={`px-3 py-1.5 rounded-xl font-bold text-xs border transition-colors ${
+                        isPaused
+                          ? "bg-amber-50 text-amber-800 border-amber-300"
+                          : "bg-[#222222] text-white border-[#222222]"
+                      }`}
+                    >
+                      {isPaused ? "Paused" : "Active & Accepting"}
+                    </button>
+                    <span className="font-extrabold text-sm">${space.pricePerHour.toFixed(2)} / hr</span>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       </div>
+
+      {/* Add New Parking Space Dialog */}
+      <Dialog
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
+        title="Add New Parking Space"
+        description="Publish a verified parking spot to the ParkMate marketplace."
+      >
+        {addSuccess ? (
+          <div className="text-center py-6 space-y-3">
+            <div className="h-14 w-14 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+              <CheckCircle2 className="h-8 w-8" />
+            </div>
+            <h4 className="text-base font-bold text-[#222222]">Listing Published!</h4>
+            <p className="text-xs text-[#717171]">
+              Your space has been verified and is now live for drivers to discover.
+            </p>
+          </div>
+        ) : (
+          <form onSubmit={handleCreateSpace} className="space-y-4 text-xs">
+            {addError && (
+              <div className="p-3 bg-red-50 text-red-800 rounded-xl text-xs flex items-center gap-2 border border-red-200">
+                <AlertCircle className="h-4 w-4 shrink-0 text-red-600" />
+                <span>{addError}</span>
+              </div>
+            )}
+
+            <div>
+              <label className="block font-bold text-[#222222] mb-1">Space Title</label>
+              <Input
+                required
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="e.g. Secure Downtown Driveway near Financial District"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-[#222222] mb-1">Street Address</label>
+              <Input
+                required
+                value={newAddress}
+                onChange={(e) => setNewAddress(e.target.value)}
+                placeholder="e.g. 150 Fremont St, San Francisco"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block font-bold text-[#222222] mb-1">Neighborhood</label>
+                <select
+                  value={newNeighborhood}
+                  onChange={(e) => setNewNeighborhood(e.target.value)}
+                  className="w-full text-xs font-semibold rounded-xl border border-[#DDDDDD] p-2.5 bg-white"
+                >
+                  <option value="Financial District">Financial District</option>
+                  <option value="Nob Hill">Nob Hill</option>
+                  <option value="SoMa">SoMa</option>
+                  <option value="Mission">Mission District</option>
+                  <option value="Airport">Airport Corridor</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#222222] mb-1">Space Category</label>
+                <select
+                  value={newCategory}
+                  onChange={(e) => setNewCategory(e.target.value as SpaceCategory)}
+                  className="w-full text-xs font-semibold rounded-xl border border-[#DDDDDD] p-2.5 bg-white"
+                >
+                  <option value="covered">Covered / Garage</option>
+                  <option value="ev_charging">EV Charging Included</option>
+                  <option value="daily">Daily Commuter</option>
+                  <option value="event">Event Arena Parking</option>
+                  <option value="airport">Airport Parking</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-3 gap-3">
+              <div>
+                <label className="block font-bold text-[#222222] mb-1">Price / hr ($)</label>
+                <Input
+                  type="number"
+                  step="0.5"
+                  required
+                  value={newPricePerHour}
+                  onChange={(e) => setNewPricePerHour(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#222222] mb-1">Clearance (ft)</label>
+                <Input
+                  type="number"
+                  step="0.1"
+                  required
+                  value={newClearanceFeet}
+                  onChange={(e) => setNewClearanceFeet(e.target.value)}
+                />
+              </div>
+
+              <div>
+                <label className="block font-bold text-[#222222] mb-1">Max Vehicle</label>
+                <select
+                  value={newMaxVehicle}
+                  onChange={(e) => setNewMaxVehicle(e.target.value as VehicleType)}
+                  className="w-full text-xs font-semibold rounded-xl border border-[#DDDDDD] p-2.5 bg-white"
+                >
+                  <option value="compact">Compact</option>
+                  <option value="sedan">Sedan</option>
+                  <option value="suv">SUV</option>
+                  <option value="truck">Truck / Van</option>
+                </select>
+              </div>
+            </div>
+
+            <div>
+              <label className="block font-bold text-[#222222] mb-1">Detailed Description</label>
+              <textarea
+                required
+                rows={3}
+                value={newDescription}
+                onChange={(e) => setNewDescription(e.target.value)}
+                placeholder="Describe access instructions, security gates, charger speed, and proximity to landmarks."
+                className="w-full text-xs rounded-xl border border-[#DDDDDD] p-2.5 bg-white"
+              />
+            </div>
+
+            <div>
+              <label className="block font-bold text-[#222222] mb-1">Space Photo URL</label>
+              <Input
+                required
+                value={newPhotoUrl}
+                onChange={(e) => setNewPhotoUrl(e.target.value)}
+                placeholder="https://..."
+              />
+            </div>
+
+            <div className="pt-2 flex gap-3">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-1/2"
+                onClick={() => setIsAddModalOpen(false)}
+                disabled={isSubmittingNewSpace}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="brand"
+                className="w-1/2"
+                disabled={isSubmittingNewSpace}
+              >
+                {isSubmittingNewSpace ? "Publishing..." : "Publish Space"}
+              </Button>
+            </div>
+          </form>
+        )}
+      </Dialog>
     </div>
   );
 }

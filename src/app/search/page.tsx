@@ -16,7 +16,7 @@ import { ParkingCard } from "@/components/parking/parking-card";
 import { InteractiveMap } from "@/components/map/interactive-map";
 import { Button } from "@/components/ui/button";
 import { VEHICLE_PRESETS } from "@/lib/constants";
-import { VehicleType } from "@/types/parking";
+import { VehicleType, ParkingSpace } from "@/types/parking";
 
 function SearchPageContent() {
   const searchParams = useSearchParams();
@@ -35,6 +35,18 @@ function SearchPageContent() {
   // UI states
   const [mobileView, setMobileView] = React.useState<"list" | "map">("list");
   const [highlightedSpaceId, setHighlightedSpaceId] = React.useState<string | null>(null);
+  const [spaces, setSpaces] = React.useState<ParkingSpace[]>(MOCK_PARKING_SPACES);
+
+  React.useEffect(() => {
+    fetch("/api/listings")
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.data && data.data.length > 0) {
+          setSpaces(data.data);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   // Active filter count calculation
   const activeFiltersCount = [
@@ -58,7 +70,7 @@ function SearchPageContent() {
 
   // Filter & Sort Logic
   const filteredSpaces = React.useMemo(() => {
-    const list = MOCK_PARKING_SPACES.filter((s) => {
+    const list = spaces.filter((s) => {
       // Destination search
       if (destinationQuery) {
         const query = destinationQuery.toLowerCase();
@@ -96,7 +108,7 @@ function SearchPageContent() {
       if (sortBy === "rating") return b.rating - a.rating;
       return 0; // recommended
     });
-  }, [destinationQuery, selectedVehicle, onlyCovered, onlyEv, maxPrice, sortBy]);
+  }, [spaces, destinationQuery, selectedVehicle, onlyCovered, onlyEv, maxPrice, sortBy]);
 
   return (
     <div className="flex flex-col min-h-screen bg-white">
