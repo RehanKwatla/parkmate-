@@ -9,14 +9,22 @@ import {
   RotateCcw, 
   Zap, 
   Warehouse, 
-  Car
+  Car,
+  Clock,
+  SlidersHorizontal,
+  ShieldCheck,
+  Info,
+  CheckCircle2
 } from "lucide-react";
-import { MOCK_PARKING_SPACES } from "@/lib/mock-data";
 import { ParkingCard } from "@/components/parking/parking-card";
-import { InteractiveMap } from "@/components/map/interactive-map";
+import { MapAdapter } from "@/components/map/map-adapter";
 import { Button } from "@/components/ui/button";
-import { VEHICLE_PRESETS } from "@/lib/constants";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@/components/ui/badge";
 import { VehicleType, ParkingSpace } from "@/types/parking";
+import { DETAILED_VEHICLE_PROFILES, DEFAULT_SAFETY_MARGINS } from "@/lib/compatibility-engine";
+import { RankedSpaceResult } from "@/lib/ranking-engine";
+import { SearchResponsePayload } from "@/app/api/search/route";
 
 function SearchPageContent() {
   const searchParams = useSearchParams();
@@ -26,278 +34,642 @@ function SearchPageContent() {
   // Filter States
   const [destinationQuery, setDestinationQuery] = React.useState(initialDestination);
   const [selectedVehicle, setSelectedVehicle] = React.useState<VehicleType | "all">(initialVehicle);
+  const [customHeight, setCustomHeight] = React.useState<string>("");
+  const [customLength, setCustomLength] = React.useState<string>("");
+  const [customWidth, setCustomWidth] = React.useState<string>("");
+  const [showCustomDimensions, setShowCustomDimensions] = React.useState(false);
+
+  const [arrivalDateTime, setArrivalDateTime] = React.useState<string>("");
+  const [departureDateTime, setDepartureDateTime] = React.useState<string>("");
+
   const [onlyCovered, setOnlyCovered] = React.useState(false);
   const [onlyEv, setOnlyEv] = React.useState(false);
-  const [maxPrice, setMaxPrice] = React.useState(15);
-  const [maxWalkMins, setMaxWalkMins] = React.useState<number | null>(null);
-  const [sortBy, setSortBy] = React.useState<"recommended" | "price_asc" | "price_desc" | "rating">("recommended");
+  const [maxPrice, setMaxPrice] = React.useState<number>(15);
+  const [maxDistanceMiles, setMaxDistanceMiles] = React.useState<number | "any">("any");
+  const [sortBy, setSortBy] = React.useState<"recommended" | "price_asc" | "price_desc" | "rating" | "distance">("recommended");
   
   // UI states
   const [mobileView, setMobileView] = React.useState<"list" | "map">("list");
   const [highlightedSpaceId, setHighlightedSpaceId] = React.useState<string | null>(null);
-  const [spaces, setSpaces] = React.useState<ParkingSpace[]>(MOCK_PARKING_SPACES);
+  const [showFiltersModal, setShowFiltersModal] = React.useState(false);
 
-  React.useEffect(() => {
-    fetch("/api/listings")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.data && data.data.length > 0) {
-          setSpaces(data.data);
-        }
-      })
-      .catch(() => {});
-  }, []);
+  // Server Search Response State
+  const [isLoading, setIsLoading] = React.useState(true);
+  const [searchResponse, setSearchResponse] = React.useState<SearchResponsePayload | null>(null);
+  const [errorNotice, setErrorNotice] = React.useState<string | null>(null);
 
-  // Active filter count calculation
+  // Active filter count
   const activeFiltersCount = [
-    destinationQuery !== "",
+    destinationQuery.trim() !== "",
     selectedVehicle !== "all",
+    customHeight !== "" || customLength !== "" || customWidth !== "",
+    arrivalDateTime !== "" && departureDateTime !== "",
     onlyCovered,
     onlyEv,
     maxPrice < 15,
-    maxWalkMins !== null,
+    maxDistanceMiles !== "any",
+    sortBy !== "recommended",
   ].filter(Boolean).length;
 
   const resetAllFilters = () => {
     setDestinationQuery("");
     setSelectedVehicle("all");
+    setCustomHeight("");
+    setCustomLength("");
+    setCustomWidth("");
+    setShowCustomDimensions(false);
+    setArrivalDateTime("");
+    setDepartureDateTime("");
     setOnlyCovered(false);
     setOnlyEv(false);
     setMaxPrice(15);
-    setMaxWalkMins(null);
+    setMaxDistanceMiles("any");
     setSortBy("recommended");
   };
 
-  // Filter & Sort Logic
-  const filteredSpaces = React.useMemo(() => {
-    const list = spaces.filter((s) => {
-      // Destination search
-      if (destinationQuery) {
-        const query = destinationQuery.toLowerCase();
-        const matchesLocation =
-          s.title.toLowerCase().includes(query) ||
-          s.address.toLowerCase().includes(query) ||
-          s.neighborhood.toLowerCase().includes(query);
-        if (!matchesLocation) return false;
+  // Perform Server Search
+  const fetchSearchResults = React.useCallback(async () => {
+    setIsLoading(true);
+    setErrorNotice(null);
+
+    try {
+      const params = new URLSearchParams();
+      if (destinationQuery.trim()) params.set("destination", destinationQuery.trim());
+      if (selectedVehicle !== "all") params.set("vehicleType", selectedVehicle);
+      if (customHeight) params.set("customHeightFeet", customHeight);
+      if (customLength) params.set("customLengthFeet", customLength);
+      if (customWidth) params.set("customWidthFeet", customWidth);
+      if (arrivalDateTime) params.set("startTime", new Date(arrivalDateTime).toISOString());
+      if (departureDateTime) params.set("endTime", new Date(departureDateTime).toISOString());
+      if (onlyCovered) params.set("onlyCovered", "true");
+      if (onlyEv) params.set("onlyEv", "true");
+      if (maxPrice && maxPrice < 25) params.set("maxPrice", maxPrice.toString());
+      if (maxDistanceMiles !== "any") params.set("maxDistanceMiles", maxDistanceMiles.toString());
+      if (sortBy) params.set("sortBy", sortBy);
+
+      const res = await fetch(`/api/search?${params.toString()}`);
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `Search failed with status ${res.status}`);
       }
+      const data: SearchResponsePayload = await res.json();
+      setSearchResponse(data);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : "Failed to load parking results";
+      setErrorNotice(msg);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [
+    destinationQuery,
+    selectedVehicle,
+    customHeight,
+    customLength,
+    customWidth,
+    arrivalDateTime,
+    departureDateTime,
+    onlyCovered,
+    onlyEv,
+    maxPrice,
+    maxDistanceMiles,
+    sortBy,
+  ]);
 
-      // Vehicle clearance compatibility
-      if (selectedVehicle !== "all") {
-        const preset = VEHICLE_PRESETS.find((v) => v.id === selectedVehicle);
-        if (preset && s.clearanceFeet < preset.heightFeet) {
-          return false;
-        }
-      }
+  // Debounced search trigger on filter change
+  React.useEffect(() => {
+    const handler = setTimeout(() => {
+      fetchSearchResults();
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [fetchSearchResults]);
 
-      // Covered filter
-      if (onlyCovered && !s.isCovered) return false;
-
-      // EV filter
-      if (onlyEv && !s.hasEvCharging) return false;
-
-      // Price filter
-      if (s.pricePerHour > maxPrice) return false;
-
-      return true;
-    });
-
-    // Sorting
-    return list.sort((a, b) => {
-      if (sortBy === "price_asc") return a.pricePerHour - b.pricePerHour;
-      if (sortBy === "price_desc") return b.pricePerHour - a.pricePerHour;
-      if (sortBy === "rating") return b.rating - a.rating;
-      return 0; // recommended
-    });
-  }, [spaces, destinationQuery, selectedVehicle, onlyCovered, onlyEv, maxPrice, sortBy]);
+  const validSpaces: RankedSpaceResult[] = searchResponse?.data || [];
+  const alternativeSpaces = searchResponse?.alternatives || [];
+  const mapSpaces: ParkingSpace[] = [
+    ...validSpaces.map((item) => item.space),
+    ...alternativeSpaces.map((item) => item.space),
+  ];
 
   return (
-    <div className="flex flex-col min-h-screen bg-white">
+    <div className="flex flex-col min-h-screen bg-[#FDFDFD]">
       {/* Top Search & Filter Bar */}
-      <div className="sticky top-20 z-30 bg-white border-b border-[#EBEBEB] px-4 sm:px-6 lg:px-8 py-3.5 shadow-xs">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
-          {/* Left: Search input & Active Filters */}
-          <div className="flex items-center gap-2 flex-wrap">
-            <div className="relative min-w-[200px] sm:min-w-[280px]">
-              <input
-                type="text"
-                value={destinationQuery}
-                onChange={(e) => setDestinationQuery(e.target.value)}
-                placeholder="Filter by area, street, or spot name..."
-                className="w-full text-xs sm:text-sm pl-3.5 pr-8 py-2 rounded-full border border-[#DDDDDD] bg-[#F7F7F7] focus:bg-white focus:outline-none focus:border-[#222222]"
-              />
-              {destinationQuery && (
+      <div className="sticky top-20 z-30 bg-white/95 backdrop-blur-md border-b border-[#EBEBEB] px-4 sm:px-6 lg:px-8 py-3 shadow-xs">
+        <div className="max-w-7xl mx-auto flex flex-col gap-3">
+          {/* Main Controls Row */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            {/* Left: Search input & vehicle selection */}
+            <div className="flex items-center gap-2 flex-wrap flex-1 min-w-[280px]">
+              {/* Destination Input */}
+              <div className="relative min-w-[220px] sm:min-w-[280px]">
+                <input
+                  type="text"
+                  value={destinationQuery}
+                  onChange={(e) => setDestinationQuery(e.target.value)}
+                  placeholder="Destination, neighborhood, or landmark..."
+                  className="w-full text-xs sm:text-sm pl-3.5 pr-8 py-2 rounded-full border border-[#DDDDDD] bg-[#F7F7F7] focus:bg-white focus:outline-none focus:border-[#222222] transition-colors"
+                />
+                {destinationQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setDestinationQuery("")}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#717171] hover:text-[#222222]"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* Vehicle Profile Selector */}
+              <div className="flex items-center gap-1 bg-[#F7F7F7] border border-[#DDDDDD] rounded-full px-3 py-1.5 text-xs">
+                <Car className="h-3.5 w-3.5 text-neutral-600 shrink-0" />
+                <select
+                  value={selectedVehicle}
+                  onChange={(e) => {
+                    setSelectedVehicle(e.target.value as VehicleType | "all");
+                    if (e.target.value === "all") {
+                      setCustomHeight("");
+                      setCustomLength("");
+                      setCustomWidth("");
+                    }
+                  }}
+                  className="bg-transparent text-xs font-bold text-[#222222] focus:outline-none cursor-pointer"
+                >
+                  <option value="all">Any Vehicle Profile</option>
+                  <option value="compact">Compact / Mini (&lt; 4.8ft)</option>
+                  <option value="sedan">Sedan / Mid-Size (&lt; 4.9ft)</option>
+                  <option value="suv">SUV / Crossover (&lt; 5.8ft)</option>
+                  <option value="truck">Pickup Truck (&lt; 6.5ft)</option>
+                  <option value="van">Commercial Van (&lt; 7.8ft)</option>
+                  <option value="ev">Electric Vehicle (EV)</option>
+                </select>
+              </div>
+
+              {/* Custom Dimensions Trigger */}
+              <button
+                type="button"
+                onClick={() => setShowCustomDimensions(!showCustomDimensions)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                  customHeight || customLength || customWidth
+                    ? "bg-[#222222] text-white border-[#222222]"
+                    : "bg-white text-[#717171] border-[#DDDDDD] hover:border-[#222222]"
+                }`}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                {customHeight || customLength || customWidth ? "Custom Dimensions Set" : "Custom Dimensions"}
+              </button>
+
+              {/* Quick Toggle: Covered */}
+              <button
+                type="button"
+                onClick={() => setOnlyCovered(!onlyCovered)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                  onlyCovered
+                    ? "bg-[#222222] text-white border-[#222222]"
+                    : "bg-white text-[#717171] border-[#DDDDDD] hover:border-[#222222]"
+                }`}
+              >
+                <Warehouse className="h-3.5 w-3.5" />
+                Covered
+              </button>
+
+              {/* Quick Toggle: EV */}
+              <button
+                type="button"
+                onClick={() => setOnlyEv(!onlyEv)}
+                className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 ${
+                  onlyEv
+                    ? "bg-sky-600 text-white border-sky-600"
+                    : "bg-white text-[#717171] border-[#DDDDDD] hover:border-[#222222]"
+                }`}
+              >
+                <Zap className="h-3.5 w-3.5" />
+                EV Fast Charging
+              </button>
+            </div>
+
+            {/* Right: Sort & Filter Modals */}
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-1 text-xs">
+                <span className="text-[#717171] hidden md:inline">Sort:</span>
+                <select
+                  value={sortBy}
+                  onChange={(e) => setSortBy(e.target.value as "recommended" | "price_asc" | "price_desc" | "rating" | "distance")}
+                  className="bg-white border border-[#DDDDDD] rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#222222] focus:outline-none cursor-pointer"
+                >
+                  <option value="recommended">Recommended (Multi-Criteria Score)</option>
+                  <option value="distance">Proximity (Closest First)</option>
+                  <option value="price_asc">Price: Low to High</option>
+                  <option value="price_desc">Price: High to Low</option>
+                  <option value="rating">Highest Host Rating</option>
+                </select>
+              </div>
+
+              {/* Expand All Filters Button */}
+              <button
+                type="button"
+                onClick={() => setShowFiltersModal(!showFiltersModal)}
+                className={`px-3 py-1.5 rounded-xl text-xs font-bold border flex items-center gap-1.5 transition-colors ${
+                  showFiltersModal || activeFiltersCount > 0
+                    ? "bg-[#222222] text-white border-[#222222]"
+                    : "bg-white text-[#222222] border-[#DDDDDD] hover:bg-neutral-50"
+                }`}
+              >
+                <SlidersHorizontal className="h-3.5 w-3.5" />
+                <span>Filters {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ""}</span>
+              </button>
+
+              {activeFiltersCount > 0 && (
                 <button
                   type="button"
-                  onClick={() => setDestinationQuery("")}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#717171] hover:text-[#222222]"
+                  onClick={resetAllFilters}
+                  className="text-xs text-[#FF5A5F] hover:underline font-bold px-2 py-1 flex items-center gap-1"
                 >
-                  <X className="h-3.5 w-3.5" />
+                  <RotateCcw className="h-3 w-3" />
+                  Reset
                 </button>
               )}
             </div>
-
-            {/* Quick Toggle: Covered */}
-            <button
-              type="button"
-              onClick={() => setOnlyCovered(!onlyCovered)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 ${
-                onlyCovered
-                  ? "bg-[#222222] text-white border-[#222222]"
-                  : "bg-white text-[#717171] border-[#DDDDDD] hover:border-[#222222]"
-              }`}
-            >
-              <Warehouse className="h-3.5 w-3.5" />
-              Covered Parking
-            </button>
-
-            {/* Quick Toggle: EV */}
-            <button
-              type="button"
-              onClick={() => setOnlyEv(!onlyEv)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-all flex items-center gap-1.5 ${
-                onlyEv
-                  ? "bg-sky-600 text-white border-sky-600"
-                  : "bg-white text-[#717171] border-[#DDDDDD] hover:border-[#222222]"
-              }`}
-            >
-              <Zap className="h-3.5 w-3.5" />
-              EV Charging
-            </button>
-
-            {/* Vehicle Selector Pill */}
-            <div className="hidden sm:flex items-center gap-1 text-xs">
-              <span className="text-[#717171] font-medium">Vehicle:</span>
-              <select
-                value={selectedVehicle}
-                onChange={(e) => setSelectedVehicle(e.target.value as VehicleType | "all")}
-                className="bg-[#F7F7F7] border border-[#DDDDDD] rounded-full px-2.5 py-1 text-xs font-bold text-[#222222] focus:outline-none"
-              >
-                <option value="all">Any Size</option>
-                <option value="compact">Compact (&lt; 4.8ft)</option>
-                <option value="sedan">Sedan (&lt; 5.0ft)</option>
-                <option value="suv">SUV (&lt; 6.0ft)</option>
-                <option value="truck">Truck / Van (&lt; 7.0ft)</option>
-              </select>
-            </div>
           </div>
 
-          {/* Right: Sort and Filter Trigger */}
-          <div className="flex items-center gap-2">
-            <div className="flex items-center gap-1 text-xs">
-              <span className="text-[#717171] hidden md:inline">Sort:</span>
-              <select
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value as "recommended" | "price_asc" | "price_desc" | "rating")}
-                className="bg-white border border-[#DDDDDD] rounded-xl px-2.5 py-1.5 text-xs font-bold text-[#222222] focus:outline-none cursor-pointer"
-              >
-                <option value="recommended">Recommended</option>
-                <option value="price_asc">Price: Low to High</option>
-                <option value="price_desc">Price: High to Low</option>
-                <option value="rating">Highest Rated</option>
-              </select>
-            </div>
+          {/* Custom Dimensions Drawer / Collapsible */}
+          {showCustomDimensions && (
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center justify-between mb-3">
+                <div className="flex items-center gap-2">
+                  <Car className="h-4 w-4 text-[#FF5A5F]" />
+                  <h4 className="text-xs font-extrabold text-neutral-900 uppercase tracking-wide">
+                    Custom Vehicle Physical Dimensions
+                  </h4>
+                  <Badge variant="outline" className="text-[10px] bg-white text-neutral-600">
+                    Safety Margin: +{DEFAULT_SAFETY_MARGINS.heightFeet}&apos; roof &bull; +{DEFAULT_SAFETY_MARGINS.lengthFeet}&apos; length
+                  </Badge>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCustomDimensions(false)}
+                  className="text-neutral-400 hover:text-neutral-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
+                    Vehicle Height (Feet)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="3.0"
+                    max="14.0"
+                    placeholder="e.g. 5.9"
+                    value={customHeight}
+                    onChange={(e) => setCustomHeight(e.target.value)}
+                    className="w-full text-xs px-3 py-1.5 rounded-lg border border-neutral-300 bg-white focus:outline-none focus:border-neutral-900"
+                  />
+                  <p className="text-[10px] text-neutral-500 mt-0.5">Enforces hard ceiling clearance limit.</p>
+                </div>
 
-            {/* Clear Filters Button */}
-            {activeFiltersCount > 0 && (
-              <button
-                type="button"
-                onClick={resetAllFilters}
-                className="text-xs text-[#FF5A5F] hover:underline font-bold px-2 py-1 flex items-center gap-1"
-              >
-                <RotateCcw className="h-3 w-3" />
-                Reset ({activeFiltersCount})
-              </button>
-            )}
-          </div>
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
+                    Vehicle Length (Feet)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="10.0"
+                    max="30.0"
+                    placeholder="e.g. 16.5"
+                    value={customLength}
+                    onChange={(e) => setCustomLength(e.target.value)}
+                    className="w-full text-xs px-3 py-1.5 rounded-lg border border-neutral-300 bg-white focus:outline-none focus:border-neutral-900"
+                  />
+                  <p className="text-[10px] text-neutral-500 mt-0.5">Checked against space bay length.</p>
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-semibold text-neutral-700 mb-1">
+                    Vehicle Width (Feet)
+                  </label>
+                  <input
+                    type="number"
+                    step="0.1"
+                    min="4.0"
+                    max="10.0"
+                    placeholder="e.g. 6.2"
+                    value={customWidth}
+                    onChange={(e) => setCustomWidth(e.target.value)}
+                    className="w-full text-xs px-3 py-1.5 rounded-lg border border-neutral-300 bg-white focus:outline-none focus:border-neutral-900"
+                  />
+                  <p className="text-[10px] text-neutral-500 mt-0.5">Ensures sufficient door opening space.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Extended Filters Panel (Time Windows, Budget, Walking Radius) */}
+          {showFiltersModal && (
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50/80 p-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <div className="flex items-center justify-between mb-3 border-b border-neutral-200 pb-2">
+                <span className="text-xs font-extrabold uppercase tracking-wide text-neutral-800">
+                  Search &amp; Server Availability Filters
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setShowFiltersModal(false)}
+                  className="text-neutral-400 hover:text-neutral-700"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 text-xs">
+                {/* Arrival Time */}
+                <div>
+                  <label className="block font-semibold text-neutral-700 mb-1">
+                    Arrival Date &amp; Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={arrivalDateTime}
+                    onChange={(e) => setArrivalDateTime(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-300 bg-white focus:outline-none focus:border-neutral-900 text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-neutral-500 mt-1">Checks server booking overlaps.</p>
+                </div>
+
+                {/* Departure Time */}
+                <div>
+                  <label className="block font-semibold text-neutral-700 mb-1">
+                    Departure Date &amp; Time
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={departureDateTime}
+                    onChange={(e) => setDepartureDateTime(e.target.value)}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-300 bg-white focus:outline-none focus:border-neutral-900 text-xs font-mono"
+                  />
+                  <p className="text-[10px] text-neutral-500 mt-1">Blocks unavailable calendar periods.</p>
+                </div>
+
+                {/* Max Budget Slider */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="font-semibold text-neutral-700">Max Budget</label>
+                    <span className="font-extrabold text-neutral-900">${maxPrice}/hr</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="4"
+                    max="25"
+                    step="1"
+                    value={maxPrice}
+                    onChange={(e) => setMaxPrice(Number(e.target.value))}
+                    className="w-full accent-[#FF5A5F] cursor-pointer"
+                  />
+                  <div className="flex justify-between text-[10px] text-neutral-400 mt-0.5">
+                    <span>$4/hr</span>
+                    <span>$15/hr</span>
+                    <span>$25/hr</span>
+                  </div>
+                </div>
+
+                {/* Walking Distance Filter */}
+                <div>
+                  <label className="block font-semibold text-neutral-700 mb-1">
+                    Max Walking Distance
+                  </label>
+                  <select
+                    value={maxDistanceMiles}
+                    onChange={(e) => setMaxDistanceMiles(e.target.value === "any" ? "any" : Number(e.target.value))}
+                    className="w-full px-2.5 py-1.5 rounded-lg border border-neutral-300 bg-white focus:outline-none focus:border-neutral-900 text-xs font-medium cursor-pointer"
+                  >
+                    <option value="any">Any Distance</option>
+                    <option value="0.25">Within 0.25 mi (~5 min walk)</option>
+                    <option value="0.5">Within 0.5 mi (~10 min walk)</option>
+                    <option value="1.0">Within 1.0 mi (~20 min walk)</option>
+                    <option value="2.0">Within 2.0 mi (~40 min walk)</option>
+                  </select>
+                  <p className="text-[10px] text-neutral-500 mt-1">Based on urban pedestrian routing.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active Filter Chips */}
+          {activeFiltersCount > 0 && (
+            <div className="flex items-center gap-2 pt-1 flex-wrap text-xs">
+              <span className="text-[#717171] font-medium text-[11px]">Active Filters:</span>
+              {destinationQuery && (
+                <span className="inline-flex items-center gap-1 bg-[#F7F7F7] border border-[#DDDDDD] px-2.5 py-0.5 rounded-full font-medium">
+                  Destination: {destinationQuery}
+                  <X className="h-3 w-3 cursor-pointer text-[#717171]" onClick={() => setDestinationQuery("")} />
+                </span>
+              )}
+              {selectedVehicle !== "all" && (
+                <span className="inline-flex items-center gap-1 bg-[#F7F7F7] border border-[#DDDDDD] px-2.5 py-0.5 rounded-full font-medium">
+                  Vehicle: {selectedVehicle.toUpperCase()}
+                  <X className="h-3 w-3 cursor-pointer text-[#717171]" onClick={() => setSelectedVehicle("all")} />
+                </span>
+              )}
+              {(customHeight || customLength || customWidth) && (
+                <span className="inline-flex items-center gap-1 bg-neutral-900 text-white px-2.5 py-0.5 rounded-full font-medium">
+                  Custom: {customHeight ? `H:${customHeight}'` : ""} {customLength ? `L:${customLength}'` : ""}
+                  <X
+                    className="h-3 w-3 cursor-pointer"
+                    onClick={() => {
+                      setCustomHeight("");
+                      setCustomLength("");
+                      setCustomWidth("");
+                    }}
+                  />
+                </span>
+              )}
+              {arrivalDateTime && departureDateTime && (
+                <span className="inline-flex items-center gap-1 bg-emerald-50 border border-emerald-200 text-emerald-800 px-2.5 py-0.5 rounded-full font-medium">
+                  <Clock className="h-3 w-3" />
+                  Time Window Selected
+                  <X
+                    className="h-3 w-3 cursor-pointer"
+                    onClick={() => {
+                      setArrivalDateTime("");
+                      setDepartureDateTime("");
+                    }}
+                  />
+                </span>
+              )}
+              {onlyCovered && (
+                <span className="inline-flex items-center gap-1 bg-[#F7F7F7] border border-[#DDDDDD] px-2.5 py-0.5 rounded-full font-medium">
+                  Covered Only
+                  <X className="h-3 w-3 cursor-pointer text-[#717171]" onClick={() => setOnlyCovered(false)} />
+                </span>
+              )}
+              {onlyEv && (
+                <span className="inline-flex items-center gap-1 bg-sky-50 border border-sky-200 text-sky-800 px-2.5 py-0.5 rounded-full font-medium">
+                  EV Fast Charging
+                  <X className="h-3 w-3 cursor-pointer" onClick={() => setOnlyEv(false)} />
+                </span>
+              )}
+              {maxPrice < 15 && (
+                <span className="inline-flex items-center gap-1 bg-[#F7F7F7] border border-[#DDDDDD] px-2.5 py-0.5 rounded-full font-medium">
+                  Max ${maxPrice}/hr
+                  <X className="h-3 w-3 cursor-pointer text-[#717171]" onClick={() => setMaxPrice(15)} />
+                </span>
+              )}
+              {maxDistanceMiles !== "any" && (
+                <span className="inline-flex items-center gap-1 bg-[#F7F7F7] border border-[#DDDDDD] px-2.5 py-0.5 rounded-full font-medium">
+                  Max {maxDistanceMiles} mi
+                  <X className="h-3 w-3 cursor-pointer text-[#717171]" onClick={() => setMaxDistanceMiles("any")} />
+                </span>
+              )}
+            </div>
+          )}
         </div>
-
-        {/* Active Filter Chips */}
-        {activeFiltersCount > 0 && (
-          <div className="max-w-7xl mx-auto flex items-center gap-2 pt-2.5 flex-wrap text-xs">
-            <span className="text-[#717171] font-medium">Active:</span>
-            {destinationQuery && (
-              <span className="inline-flex items-center gap-1 bg-[#F7F7F7] border border-[#DDDDDD] px-2.5 py-0.5 rounded-full font-medium">
-                Area: {destinationQuery}
-                <X className="h-3 w-3 cursor-pointer text-[#717171]" onClick={() => setDestinationQuery("")} />
-              </span>
-            )}
-            {selectedVehicle !== "all" && (
-              <span className="inline-flex items-center gap-1 bg-[#F7F7F7] border border-[#DDDDDD] px-2.5 py-0.5 rounded-full font-medium">
-                Vehicle: {selectedVehicle}
-                <X className="h-3 w-3 cursor-pointer text-[#717171]" onClick={() => setSelectedVehicle("all")} />
-              </span>
-            )}
-            {onlyCovered && (
-              <span className="inline-flex items-center gap-1 bg-[#F7F7F7] border border-[#DDDDDD] px-2.5 py-0.5 rounded-full font-medium">
-                Covered Only
-                <X className="h-3 w-3 cursor-pointer text-[#717171]" onClick={() => setOnlyCovered(false)} />
-              </span>
-            )}
-            {onlyEv && (
-              <span className="inline-flex items-center gap-1 bg-sky-50 border border-sky-200 text-sky-800 px-2.5 py-0.5 rounded-full font-medium">
-                EV Fast Charging
-                <X className="h-3 w-3 cursor-pointer" onClick={() => setOnlyEv(false)} />
-              </span>
-            )}
-          </div>
-        )}
       </div>
 
-      {/* Main Content: Split List and Map on Desktop, Toggle on Mobile */}
+      {/* Main Content: Split List and Map */}
       <div className="flex-1 flex flex-col lg:flex-row relative">
-        {/* Left / Main: Listings Grid */}
+        {/* Left / Main: Listings Column */}
         <div
           className={`w-full lg:w-7/12 p-4 sm:p-6 lg:p-8 overflow-y-auto ${
             mobileView === "map" ? "hidden lg:block" : "block"
           }`}
         >
-          {/* Results Summary */}
-          <div className="flex items-center justify-between mb-6">
+          {/* Header Summary & Ranking Philosophy Disclosure */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4 pb-3 border-b border-neutral-100">
             <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold text-[#222222]">
-                {filteredSpaces.length} Parking {filteredSpaces.length === 1 ? "Space" : "Spaces"} in San Francisco
-              </h1>
-              <p className="text-xs text-[#717171] mt-0.5">
-                All spots include real-time vehicle clearance guarantee &amp; Booking Recovery protection
+              <div className="flex items-center gap-2">
+                <h1 className="text-xl sm:text-2xl font-extrabold text-[#222222]">
+                  {isLoading ? "Searching Spaces..." : `${validSpaces.length} Verified Spaces Available`}
+                </h1>
+                {searchResponse?.source === "supabase" && (
+                  <Badge variant="outline" className="text-emerald-700 bg-emerald-50 border-emerald-300 text-[10px]">
+                    Live Supabase DB
+                  </Badge>
+                )}
+              </div>
+              <p className="text-xs text-[#717171] mt-1 flex items-center gap-1.5">
+                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                Hard vehicle compatibility &amp; server booking availability strictly enforced.
               </p>
+            </div>
+
+            {/* Ranking disclosure badge */}
+            <div className="text-[11px] text-neutral-500 bg-neutral-100 rounded-xl px-2.5 py-1 self-start sm:self-auto flex items-center gap-1.5">
+              <Info className="h-3.5 w-3.5 text-neutral-600" />
+              <span>Deterministic Multi-Criteria Ranking</span>
             </div>
           </div>
 
-          {/* Listings List */}
-          {filteredSpaces.length > 0 ? (
+          {errorNotice && (
+            <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700">
+              {errorNotice}
+            </div>
+          )}
+
+          {/* Loading Skeletons */}
+          {isLoading ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-              {filteredSpaces.map((space) => (
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="flex flex-col space-y-3">
+                  <Skeleton className="aspect-4/3 w-full rounded-2xl" />
+                  <Skeleton className="h-5 w-3/4 rounded-md" />
+                  <Skeleton className="h-4 w-1/2 rounded-md" />
+                  <div className="flex gap-2">
+                    <Skeleton className="h-6 w-20 rounded-full" />
+                    <Skeleton className="h-6 w-24 rounded-full" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : validSpaces.length > 0 ? (
+            /* Direct Results Grid */
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+              {validSpaces.map((item) => (
                 <div
-                  key={space.id}
-                  onMouseEnter={() => setHighlightedSpaceId(space.id)}
+                  key={item.space.id}
+                  onMouseEnter={() => setHighlightedSpaceId(item.space.id)}
                   onMouseLeave={() => setHighlightedSpaceId(null)}
                 >
-                  <ParkingCard space={space} />
+                  <ParkingCard
+                    space={item.space}
+                    compatibility={item.compatibility}
+                    distanceMiles={item.distanceMiles}
+                    walkingTimeMinutes={item.walkingTimeMinutes}
+                    rankingScore={item.score}
+                  />
                 </div>
               ))}
             </div>
           ) : (
-            <div className="rounded-3xl border border-dashed border-[#DDDDDD] bg-[#F7F7F7] p-12 text-center my-6">
-              <Car className="h-10 w-10 text-[#717171] mx-auto mb-3" />
-              <h3 className="text-lg font-bold text-[#222222]">No parking spaces match these criteria</h3>
-              <p className="text-sm text-[#717171] mt-1 mb-4">
-                Try widening your vehicle clearance requirements or removing covered/EV restrictions.
-              </p>
-              <Button variant="brand" onClick={resetAllFilters}>
-                Clear All Filters
-              </Button>
+            /* Empty State with Guaranteed Safe Alternatives */
+            <div className="flex flex-col space-y-6">
+              <div className="rounded-3xl border border-dashed border-[#DDDDDD] bg-[#F7F7F7] p-8 sm:p-12 text-center">
+                <Car className="h-10 w-10 text-[#717171] mx-auto mb-3" />
+                <h3 className="text-lg font-bold text-[#222222]">
+                  No direct matches for your exact constraints
+                </h3>
+                <p className="text-xs sm:text-sm text-[#717171] max-w-md mx-auto mt-1 mb-4">
+                  {selectedVehicle !== "all"
+                    ? `We could not find parking spaces fitting your ${DETAILED_VEHICLE_PROFILES[selectedVehicle]?.name || "vehicle"} within your current distance or budget limits.`
+                    : "No spaces match your combined filters."}
+                </p>
+                <div className="flex items-center justify-center gap-3">
+                  <Button variant="brand" onClick={resetAllFilters} className="text-xs">
+                    Clear All Filters
+                  </Button>
+                </div>
+              </div>
+
+              {/* Verified Safe Alternatives Section */}
+              {alternativeSpaces.length > 0 && (
+                <div className="pt-2">
+                  <div className="mb-4">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                      <h3 className="text-base font-bold text-[#222222]">
+                        Recommended Compatible Alternatives ({alternativeSpaces.length})
+                      </h3>
+                    </div>
+                    <p className="text-xs text-[#717171] mt-0.5">
+                      These spaces strictly satisfy your vehicle clearance and availability requirements, but differ on secondary distance or budget filters.
+                    </p>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                    {alternativeSpaces.map((item) => (
+                      <div
+                        key={item.space.id}
+                        onMouseEnter={() => setHighlightedSpaceId(item.space.id)}
+                        onMouseLeave={() => setHighlightedSpaceId(null)}
+                      >
+                        <ParkingCard
+                          space={item.space}
+                          compatibility={item.compatibility}
+                          distanceMiles={item.distanceMiles}
+                          walkingTimeMinutes={item.walkingTimeMinutes}
+                          rankingScore={item.score}
+                          isAlternative={true}
+                          alternativeReason={item.alternativeReason}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </div>
 
-        {/* Right: Interactive Map (Sticky on Desktop) */}
+        {/* Right: Reusable Map Adapter (Sticky on Desktop) */}
         <div
           className={`w-full lg:w-5/12 h-[calc(100vh-140px)] sticky top-[140px] p-4 lg:p-6 ${
             mobileView === "list" ? "hidden lg:block" : "block h-[calc(100vh-140px)]"
           }`}
         >
-          <InteractiveMap
-            spaces={filteredSpaces}
+          <MapAdapter
+            spaces={mapSpaces}
             selectedSpaceId={highlightedSpaceId}
             onSelectSpace={(id) => setHighlightedSpaceId(id)}
             className="h-full w-full"
@@ -315,7 +687,7 @@ function SearchPageContent() {
           {mobileView === "list" ? (
             <>
               <Map className="h-4 w-4" />
-              <span>Show Map ({filteredSpaces.length})</span>
+              <span>Show Map ({mapSpaces.length})</span>
             </>
           ) : (
             <>

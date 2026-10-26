@@ -20,12 +20,28 @@ import { formatCurrency } from "@/lib/utils";
 
 import { ParkingImage } from "@/components/ui/parking-image";
 
+import { CompatibilityResult } from "@/lib/compatibility-engine";
+
 interface ParkingCardProps {
   space: ParkingSpace;
   userVehicleType?: string;
+  compatibility?: CompatibilityResult;
+  distanceMiles?: number;
+  walkingTimeMinutes?: number;
+  rankingScore?: number;
+  alternativeReason?: string;
+  isAlternative?: boolean;
 }
 
-export function ParkingCard({ space }: ParkingCardProps) {
+export function ParkingCard({
+  space,
+  compatibility,
+  distanceMiles,
+  walkingTimeMinutes,
+  rankingScore,
+  alternativeReason,
+  isAlternative,
+}: ParkingCardProps) {
   const [currentImageIdx, setCurrentImageIdx] = React.useState(0);
   const [isSaved, setIsSaved] = React.useState(false);
 
@@ -153,7 +169,9 @@ export function ParkingCard({ space }: ParkingCardProps) {
             <span>&middot;</span>
             <span className="flex items-center gap-1 text-[#222222] font-medium">
               <Footprints className="h-3 w-3 text-[#FF5A5F]" />
-              {space.walkingDistance}
+              {distanceMiles !== undefined && walkingTimeMinutes !== undefined
+                ? `${walkingTimeMinutes} min walk (${distanceMiles.toFixed(1)} mi)`
+                : space.walkingDistance}
             </span>
           </div>
 
@@ -169,12 +187,41 @@ export function ParkingCard({ space }: ParkingCardProps) {
               {space.clearanceFeet}&apos; clearance
             </Badge>
 
+            {compatibility && (
+              <Badge
+                variant="outline"
+                className={`gap-1 py-0 px-2 font-medium text-[10px] ${
+                  compatibility.isCompatible
+                    ? "border-emerald-300 text-emerald-800 bg-emerald-50/60"
+                    : "border-red-300 text-red-700 bg-red-50"
+                }`}
+              >
+                {compatibility.isCompatible
+                  ? `+${compatibility.clearanceBufferFeet.toFixed(1)}' buffer`
+                  : "Incompatible"}
+              </Badge>
+            )}
+
             {space.recoveryGuaranteed && (
               <span className="text-[10px] text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded">
                 Recovery Guaranteed
               </span>
             )}
+
+            {rankingScore !== undefined && (
+              <Badge variant="outline" className="text-[10px] py-0 px-1.5 font-mono bg-neutral-50 text-neutral-600 border-neutral-300">
+                {Math.round(rankingScore)}% match
+              </Badge>
+            )}
           </div>
+
+          {/* Alternative Suggestion Banner */}
+          {isAlternative && alternativeReason && (
+            <div className="mt-1.5 rounded-lg bg-amber-50/90 border border-amber-200/80 px-2.5 py-1 text-[11px] text-amber-900 flex items-start gap-1.5 font-medium">
+              <AlertCircle className="h-3.5 w-3.5 text-amber-600 shrink-0 mt-0.5" />
+              <span>{alternativeReason}</span>
+            </div>
+          )}
 
           {/* Pricing Row */}
           <div className="pt-2 flex items-baseline justify-between">
