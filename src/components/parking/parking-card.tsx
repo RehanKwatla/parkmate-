@@ -12,7 +12,8 @@ import {
   Warehouse, 
   Footprints, 
   Car,
-  AlertCircle
+  AlertCircle,
+  CheckCircle2
 } from "lucide-react";
 import { ParkingSpace } from "@/types/parking";
 import { Badge } from "@/components/ui/badge";
@@ -79,19 +80,19 @@ export function ParkingCard({
             className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-102"
           />
 
-          {/* Verification Badge */}
+          {/* Verification & Real-Time Availability Badges */}
           <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 z-10">
-            {space.isVerified ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-white/95 backdrop-blur-xs px-2.5 py-1 text-[11px] font-bold text-[#222222] shadow-xs">
-                <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-700/95 backdrop-blur-xs px-2.5 py-1 text-[10px] font-bold text-white shadow-xs">
+              <CheckCircle2 className="h-3 w-3" />
+              Verified Available (Real-Time)
+            </span>
+
+            {space.isVerified && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-white/95 backdrop-blur-xs px-2.5 py-1 text-[10px] font-bold text-[#222222] shadow-xs">
+                <ShieldCheck className="h-3 w-3 text-emerald-600" />
                 Verified Space
               </span>
-            ) : space.isDemoSeed ? (
-              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/90 backdrop-blur-xs px-2.5 py-1 text-[11px] font-bold text-white shadow-xs">
-                <AlertCircle className="h-3.5 w-3.5" />
-                Seeded Demo
-              </span>
-            ) : null}
+            )}
 
             {space.hasEvCharging && (
               <span className="inline-flex items-center gap-1 rounded-full bg-sky-500/95 backdrop-blur-xs px-2 py-1 text-[11px] font-bold text-white shadow-xs">

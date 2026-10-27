@@ -15,6 +15,7 @@ import {
   RankedSpaceResult,
   DEFAULT_RANKING_WEIGHTS,
 } from "@/lib/ranking-engine";
+import { estimateDemand, DemandEstimateResult } from "@/lib/demand-engine";
 
 const SearchQuerySchema = z.object({
   destination: z.string().trim().optional(),
@@ -43,6 +44,7 @@ export interface SearchResponsePayload {
   query: z.infer<typeof SearchQuerySchema>;
   appliedWeights: typeof DEFAULT_RANKING_WEIGHTS;
   destinationCoords?: { lat: number; lng: number };
+  demandEstimate?: DemandEstimateResult;
 }
 
 // Default reference coordinates for San Francisco Financial District
@@ -348,6 +350,17 @@ export async function GET(request: Request) {
       }
     }
 
+    // Compute explainable demand estimate for search parameters
+    const demandEstimate = estimateDemand({
+      destination: q.destination,
+      lat: destCoords?.lat,
+      lng: destCoords?.lng,
+      startTime: q.startTime,
+      endTime: q.endTime,
+      historicalSampleBookingsCount: unavailableSpaceIds.size > 0 ? unavailableSpaceIds.size : 2,
+      totalCapacityInArea: Math.max(5, allSpaces.length),
+    });
+
     const payload: SearchResponsePayload = {
       success: true,
       source: dataSource,
@@ -358,6 +371,7 @@ export async function GET(request: Request) {
       query: q,
       appliedWeights: DEFAULT_RANKING_WEIGHTS,
       destinationCoords: destCoords,
+      demandEstimate,
     };
 
     return NextResponse.json(payload);

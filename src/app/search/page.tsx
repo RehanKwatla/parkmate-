@@ -14,7 +14,15 @@ import {
   SlidersHorizontal,
   ShieldCheck,
   Info,
-  CheckCircle2
+  CheckCircle2,
+  TrendingUp,
+  Sparkles,
+  MapPin,
+  Calendar,
+  ChevronDown,
+  ChevronUp,
+  ArrowRight,
+  AlertTriangle
 } from "lucide-react";
 import { ParkingCard } from "@/components/parking/parking-card";
 import { MapAdapter } from "@/components/map/map-adapter";
@@ -52,6 +60,7 @@ function SearchPageContent() {
   const [mobileView, setMobileView] = React.useState<"list" | "map">("list");
   const [highlightedSpaceId, setHighlightedSpaceId] = React.useState<string | null>(null);
   const [showFiltersModal, setShowFiltersModal] = React.useState(false);
+  const [showFactorsDrawer, setShowFactorsDrawer] = React.useState(false);
 
   // Server Search Response State
   const [isLoading, setIsLoading] = React.useState(true);
@@ -565,6 +574,167 @@ function SearchPageContent() {
           {errorNotice && (
             <div className="mb-4 rounded-xl bg-red-50 border border-red-200 p-3 text-xs text-red-700">
               {errorNotice}
+            </div>
+          )}
+
+          {/* Demand Estimation & Driver Recommendations Banner */}
+          {searchResponse?.demandEstimate && (
+            <div className="mb-6 rounded-3xl border border-neutral-200 bg-white p-5 shadow-xs transition-all">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-xs font-bold text-neutral-500 uppercase tracking-wider flex items-center gap-1.5">
+                      <TrendingUp className="h-3.5 w-3.5 text-neutral-600" />
+                      Area Demand Forecast
+                    </span>
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-extrabold ${
+                        searchResponse.demandEstimate.demandLevel === "high"
+                          ? "bg-rose-100 text-rose-800 border border-rose-200"
+                          : searchResponse.demandEstimate.demandLevel === "medium"
+                          ? "bg-amber-100 text-amber-800 border border-amber-200"
+                          : "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                      }`}
+                    >
+                      {searchResponse.demandEstimate.label}
+                    </span>
+                    <Badge variant="outline" className="text-[10px] text-neutral-500 bg-neutral-50">
+                      Rule-Based Heuristic (Score: {searchResponse.demandEstimate.score}/100)
+                    </Badge>
+                  </div>
+
+                  <p className="text-sm font-semibold text-[#222222]">
+                    {searchResponse.demandEstimate.summary}
+                  </p>
+
+                  <p className="text-[11px] text-[#717171] leading-relaxed">
+                    <strong className="text-neutral-700">Notice:</strong> {searchResponse.demandEstimate.disclaimer}
+                  </p>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowFactorsDrawer(!showFactorsDrawer)}
+                  className="shrink-0 text-xs font-bold text-neutral-800 hover:text-neutral-900 bg-neutral-100 hover:bg-neutral-200 px-3 py-1.5 rounded-xl flex items-center gap-1 transition cursor-pointer"
+                >
+                  <span>Why this estimate?</span>
+                  {showFactorsDrawer ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                </button>
+              </div>
+
+              {/* Explanatory Contributing Factors Breakdown Drawer */}
+              {showFactorsDrawer && (
+                <div className="mt-4 pt-4 border-t border-neutral-100 space-y-2.5 animate-in fade-in duration-200">
+                  <div className="flex items-center justify-between text-xs font-bold text-neutral-800 mb-1">
+                    <span>Contributing Factors (Transparent Rule-Based Calculation)</span>
+                    <span className="text-[11px] text-neutral-500 font-normal">
+                      Deterministic score &bull; No ML model claimed
+                    </span>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs">
+                    {searchResponse.demandEstimate.contributingFactors.map((factor, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-xl bg-neutral-50 border border-neutral-200/80 flex items-start justify-between gap-2"
+                      >
+                        <div className="space-y-0.5">
+                          <div className="flex items-center gap-1.5 font-bold text-neutral-900">
+                            <span className="capitalize text-[10px] bg-white border border-neutral-200 px-1.5 py-0.2 rounded text-neutral-600">
+                              {factor.category}
+                            </span>
+                            <span>{factor.name}</span>
+                          </div>
+                          <p className="text-[11px] text-neutral-600 leading-tight">{factor.reason}</p>
+                        </div>
+                        <span className="shrink-0 font-mono font-bold text-xs text-neutral-900 bg-white px-2 py-0.5 rounded-lg border border-neutral-200">
+                          +{factor.scoreDelta} pts
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Driver Smart Alternative Recommendations */}
+              {(searchResponse.demandEstimate.nearbyAlternativeLocations.length > 0 ||
+                searchResponse.demandEstimate.alternativeTimeWindows.length > 0) && (
+                <div className="mt-4 pt-4 border-t border-neutral-100 space-y-3">
+                  <div className="flex items-center gap-1.5 text-xs font-bold text-neutral-800">
+                    <Sparkles className="h-3.5 w-3.5 text-amber-600" />
+                    <span>Smart Driver Recommendations to Avoid Peak Demand</span>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                    {/* Alternative Nearby Location */}
+                    {searchResponse.demandEstimate.nearbyAlternativeLocations.map((altLoc, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-2xl bg-amber-50/60 border border-amber-200/80 flex flex-col justify-between space-y-2"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between font-bold text-amber-950">
+                            <span className="flex items-center gap-1">
+                              <MapPin className="h-3.5 w-3.5 text-amber-700" />
+                              {altLoc.name}
+                            </span>
+                            <Badge variant="outline" className="text-[10px] bg-white text-amber-800 border-amber-300">
+                              {altLoc.estimatedDemand.toUpperCase()} DEMAND
+                            </Badge>
+                          </div>
+                          <p className="text-[11px] text-amber-800 mt-1">
+                            {altLoc.reason} (avg ${altLoc.avgPricePerHour.toFixed(2)}/hr)
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => setDestinationQuery(altLoc.neighborhood)}
+                          className="self-start text-[11px] font-bold text-white bg-neutral-900 hover:bg-neutral-800 px-3 py-1.5 rounded-xl flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <span>Search in {altLoc.neighborhood}</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+
+                    {/* Alternative Time Window */}
+                    {searchResponse.demandEstimate.alternativeTimeWindows.slice(0, 1).map((altTime, idx) => (
+                      <div
+                        key={idx}
+                        className="p-3 rounded-2xl bg-sky-50/60 border border-sky-200/80 flex flex-col justify-between space-y-2"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between font-bold text-sky-950">
+                            <span className="flex items-center gap-1">
+                              <Clock className="h-3.5 w-3.5 text-sky-700" />
+                              {altTime.label}
+                            </span>
+                            <span className="text-[10px] font-bold text-sky-800 bg-white px-2 py-0.5 rounded-full border border-sky-300">
+                              {altTime.priceDifferencePercent}% Expected Rates
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-sky-800 mt-1">
+                            {altTime.reason}
+                          </p>
+                        </div>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setArrivalDateTime(altTime.targetStartTimeIso.slice(0, 16));
+                            setDepartureDateTime(altTime.targetEndTimeIso.slice(0, 16));
+                          }}
+                          className="self-start text-[11px] font-bold text-white bg-sky-800 hover:bg-sky-900 px-3 py-1.5 rounded-xl flex items-center gap-1 transition cursor-pointer"
+                        >
+                          <span>Apply Adjusted Window</span>
+                          <ArrowRight className="h-3 w-3" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
