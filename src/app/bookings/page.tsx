@@ -45,6 +45,8 @@ export default function BookingsPage() {
   const [cancellationResult, setCancellationResult] = React.useState<{
     refundAmount: number;
     note: string;
+    disclaimer?: string;
+    isDemoRefund?: boolean;
   } | null>(null);
 
   // Recovery Modal state
@@ -191,6 +193,8 @@ export default function BookingsPage() {
       setCancellationResult({
         refundAmount: data.cancellation?.refundAmount ?? cancellationBooking.totalPrice,
         note: data.cancellation?.note ?? "Reservation cancelled and space slot released.",
+        disclaimer: data.cancellation?.disclaimer ?? "Simulated test refund credited to demo ledger (Demo transaction: no real funds transferred).",
+        isDemoRefund: data.cancellation?.isDemoRefund ?? true,
       });
 
       await refreshBookings();
@@ -717,6 +721,14 @@ export default function BookingsPage() {
             <div className="rounded-xl bg-neutral-100 p-3 font-mono text-xs">
               Refund Amount: <span className="font-bold text-emerald-700">{formatCurrency(cancellationResult.refundAmount)}</span>
             </div>
+            {cancellationResult.disclaimer && (
+              <div className="p-2.5 rounded-xl bg-sky-50 border border-sky-200 text-sky-800 text-[11px] leading-relaxed text-left">
+                <span className="font-bold block text-[10px] uppercase tracking-wider text-sky-900 mb-0.5">
+                  Payment Transparency Notice
+                </span>
+                {cancellationResult.disclaimer}
+              </div>
+            )}
             <Button
               variant="brand"
               className="w-full text-xs"

@@ -16,6 +16,7 @@ export const BookingCreateSchema = z.object({
   customWidthFeet: z.coerce.number().positive().optional(),
   paymentMethod: z.string().default("test_card_visa"),
   simulateFailure: z.boolean().default(false),
+  idempotencyKey: z.string().optional(),
 });
 
 export const BookingQuoteSchema = z.object({

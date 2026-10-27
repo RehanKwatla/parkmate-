@@ -26,9 +26,19 @@ import {
 } from "@/lib/booking-engine";
 import { mapDbSpaceToParkingSpace, ParkingSpace, VehicleType } from "@/types/parking";
 import { Json } from "@/types/database";
+import { getClientIdentifier, checkRateLimit, createRateLimitResponse } from "@/lib/rate-limiter";
 
 export async function POST(request: Request) {
   try {
+    // -------------------------------------------------------------------------
+    // Rate Limiting: Max 20 recovery requests per minute per client
+    // -------------------------------------------------------------------------
+    const clientIp = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(clientIp, "recovery_requests", { limit: 20, windowMs: 60 * 1000 });
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit.limit, rateLimit.remaining, rateLimit.resetInSeconds, "booking recovery");
+    }
+
     const body = await request.json();
     const action = body.action || (body.problemType || body.reason ? "report" : "report");
 

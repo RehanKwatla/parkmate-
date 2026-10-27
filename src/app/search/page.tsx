@@ -18,11 +18,9 @@ import {
   TrendingUp,
   Sparkles,
   MapPin,
-  Calendar,
   ChevronDown,
   ChevronUp,
-  ArrowRight,
-  AlertTriangle
+  ArrowRight
 } from "lucide-react";
 import { ParkingCard } from "@/components/parking/parking-card";
 import { MapAdapter } from "@/components/map/map-adapter";

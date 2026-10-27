@@ -6,11 +6,12 @@ import {
   calculateBookingPrice,
   generateBookingReference,
   generateAccessCode,
-  processSimulatedPayment,
   evaluateCancellationPolicy,
   getSandboxBookings,
   addSandboxBooking,
 } from "@/lib/booking-engine";
+import { processPayment } from "@/lib/payment-engine";
+import { getClientIdentifier, checkRateLimit, createRateLimitResponse } from "@/lib/rate-limiter";
 import { evaluateVehicleCompatibility, DEFAULT_SAFETY_MARGINS } from "@/lib/compatibility-engine";
 import { mapDbSpaceToParkingSpace, Booking, ParkingSpace, VehicleType } from "@/types/parking";
 import { Json } from "@/types/database";
@@ -234,6 +235,15 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    // -------------------------------------------------------------------------
+    // Rate Limiting: Max 15 booking attempts per minute per client
+    // -------------------------------------------------------------------------
+    const clientIp = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(clientIp, "booking_create", { limit: 15, windowMs: 60 * 1000 });
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit.limit, rateLimit.remaining, rateLimit.resetInSeconds, "booking reservation");
+    }
+
     const body = await request.json();
     const result = BookingCreateSchema.safeParse(body);
 
@@ -257,7 +267,10 @@ export async function POST(request: Request) {
       customWidthFeet,
       paymentMethod,
       simulateFailure,
+      idempotencyKey: bodyIdempotencyKey,
     } = result.data;
+
+    const idempotencyKey = request.headers.get("idempotency-key") || bodyIdempotencyKey;
 
     // -------------------------------------------------------------------------
     // 1. Locate Space & Revalidate Listing Publication Status
@@ -425,21 +438,30 @@ export async function POST(request: Request) {
     const priceBreakdown = calculateBookingPrice(targetSpace.pricePerHour, startTimeDate, endTimeDate);
 
     // -------------------------------------------------------------------------
-    // 6. Server-Side Payment Verification (Simulated Test Provider)
+    // 6. Server-Side Payment Verification (Stripe Test Mode / Demo Provider)
     // -------------------------------------------------------------------------
-    const paymentResult = processSimulatedPayment({
+    const paymentResult = await processPayment({
       amount: priceBreakdown.totalPrice,
       paymentMethod,
       simulateFailure,
+      idempotencyKey: idempotencyKey || undefined,
+      metadata: {
+        spaceId: targetSpace.id,
+        vehicleModel,
+        licensePlate,
+        durationHours,
+      },
     });
 
     if (!paymentResult.success) {
       return NextResponse.json(
         {
-          error: paymentResult.errorMessage || "Payment declined by simulated issuer.",
+          error: paymentResult.errorMessage || "Payment declined by test issuer.",
           code: "PAYMENT_FAILED",
           paymentStatus: "failed",
           transactionId: paymentResult.transactionId,
+          mode: paymentResult.mode,
+          disclaimer: paymentResult.disclaimer,
         },
         { status: 402 } // 402 Payment Required
       );
@@ -567,7 +589,10 @@ export async function POST(request: Request) {
         payment: {
           transactionId: paymentResult.transactionId,
           status: paymentResult.paymentStatus,
-          method: paymentResult.method,
+          mode: paymentResult.mode,
+          isDemoTransaction: paymentResult.isDemoTransaction,
+          disclaimer: paymentResult.disclaimer,
+          idempotencyReused: paymentResult.idempotencyReused || false,
         },
         accessDetails: {
           code: accessCode,

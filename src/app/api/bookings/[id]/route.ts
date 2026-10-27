@@ -5,8 +5,9 @@ import {
   evaluateFlexParkExtension,
   evaluateCancellationPolicy,
   isValidBookingStateTransition,
-  processSimulatedPayment,
 } from "@/lib/booking-engine";
+import { processPayment, processRefund } from "@/lib/payment-engine";
+import { getClientIdentifier, checkRateLimit, createRateLimitResponse } from "@/lib/rate-limiter";
 import { INITIAL_USER_BOOKINGS } from "@/lib/mock-data";
 import { BookingStatus } from "@/types/database";
 
@@ -109,6 +110,15 @@ export async function GET(request: Request, { params }: RouteProps) {
 
 export async function PATCH(request: Request, { params }: RouteProps) {
   try {
+    // -------------------------------------------------------------------------
+    // Rate Limiting: Max 20 booking modification attempts per minute
+    // -------------------------------------------------------------------------
+    const clientIp = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(clientIp, "booking_patch", { limit: 20, windowMs: 60 * 1000 });
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit.limit, rateLimit.remaining, rateLimit.resetInSeconds, "reservation modification");
+    }
+
     const { id } = await params;
     const body = await request.json();
     const parsed = BookingStatusUpdateSchema.safeParse(body);
@@ -148,6 +158,14 @@ export async function PATCH(request: Request, { params }: RouteProps) {
         flexible_extension_supported: boolean;
       }
       const spaceInfo = booking.parking_spaces as unknown as SpaceInfo | null;
+
+      // Ownership authorization guard
+      if (user && booking.driver_id !== user.id && spaceInfo?.owner_id !== user.id) {
+        return NextResponse.json(
+          { error: "Unauthorized: You do not have permission to modify this reservation.", code: "FORBIDDEN" },
+          { status: 403 }
+        );
+      }
 
       // =======================================================================
       // ACTION: FLEXPARK EXTENSION
@@ -228,10 +246,15 @@ export async function PATCH(request: Request, { params }: RouteProps) {
           );
         }
 
-        // Process simulated payment for extension charge
-        const paymentResult = processSimulatedPayment({
+        // Process payment for extension charge via Payment Engine
+        const paymentResult = await processPayment({
           amount: evalResult.totalAdditional,
           simulateFailure,
+          metadata: {
+            bookingId: id,
+            action: "extension",
+            additionalHours,
+          },
         });
 
         if (!paymentResult.success) {
@@ -240,6 +263,8 @@ export async function PATCH(request: Request, { params }: RouteProps) {
               error: paymentResult.errorMessage || "Extension payment failed.",
               code: "PAYMENT_FAILED",
               paymentStatus: "failed",
+              mode: paymentResult.mode,
+              disclaimer: paymentResult.disclaimer,
               originalEndTime: booking.end_time,
             },
             { status: 402 }
@@ -314,6 +339,15 @@ export async function PATCH(request: Request, { params }: RouteProps) {
         // Evaluate refund policy
         const policy = evaluateCancellationPolicy(booking.start_time, Number(booking.total_price));
 
+        // Process refund transaction with transparent test/real mode declaration
+        const refund = await processRefund({
+          transactionId: `txn_${id}`,
+          refundAmount: policy.refundAmount,
+          policyTier: policy.policyTier,
+          reason: reason || policy.note,
+          isDemoTransaction: true,
+        });
+
         const { data: updatedBooking, error: cancelErr } = await supabase
           .from("bookings")
           .update({
@@ -339,6 +373,9 @@ export async function PATCH(request: Request, { params }: RouteProps) {
           metadata: {
             refundAmount: policy.refundAmount,
             policyTier: policy.policyTier,
+            refundId: refund.refundId,
+            isDemoRefund: refund.isDemoRefund,
+            disclaimer: refund.disclaimer,
             cancelledAt: new Date().toISOString(),
           },
         });
@@ -351,6 +388,9 @@ export async function PATCH(request: Request, { params }: RouteProps) {
             policyTier: policy.policyTier,
             note: policy.note,
             releasedAvailability: true,
+            refundId: refund.refundId,
+            isDemoRefund: refund.isDemoRefund,
+            disclaimer: refund.disclaimer,
           },
           message: "Reservation successfully cancelled. Space slot has been released.",
         });

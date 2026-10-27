@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { estimateDemand, DEFAULT_MANUAL_EVENT_FLAGS } from "@/lib/demand-engine";
+import { getClientIdentifier, checkRateLimit, createRateLimitResponse } from "@/lib/rate-limiter";
 
 const DemandQuerySchema = z.object({
   destination: z.string().trim().optional(),
@@ -20,6 +21,12 @@ const DemandQuerySchema = z.object({
 
 export async function GET(request: Request) {
   try {
+    const clientIp = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(clientIp, "demand_estimate", { limit: 60, windowMs: 60 * 1000 });
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit.limit, rateLimit.remaining, rateLimit.resetInSeconds, "demand estimation");
+    }
+
     const { searchParams } = new URL(request.url);
     const parsed = DemandQuerySchema.safeParse({
       destination: searchParams.get("destination") || undefined,

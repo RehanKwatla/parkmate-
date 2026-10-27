@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
 import { MOCK_PARKING_SPACES, INITIAL_USER_BOOKINGS } from "@/lib/mock-data";
-import { mapDbSpaceToParkingSpace, ParkingSpace, SpaceRow, Booking } from "@/types/parking";
+import { mapDbSpaceToParkingSpace, ParkingSpace, SpaceRow, Booking, VehicleType } from "@/types/parking";
 import {
   generateUnusedSlotRecommendations,
   calculateSpaceUtilizationAndValue,
@@ -75,11 +75,11 @@ export async function GET(request: Request) {
               startTime: b.start_time,
               endTime: b.end_time,
               vehicleModel: b.vehicle_model,
-              vehicleType: (b.vehicle_type as any) || "sedan",
+              vehicleType: (b.vehicle_type as VehicleType) || "sedan",
               licensePlate: b.license_plate,
               hourlyRate: Number(b.hourly_rate),
               totalPrice: Number(b.total_price),
-              status: b.booking_status as any,
+              status: b.booking_status as Booking["status"],
               accessCode: b.access_code,
               canExtend: true,
             }));
@@ -190,11 +190,30 @@ export async function POST(request: Request) {
 
     const supabase = await createServerSupabaseClient();
 
-    // 1. Strict Conflict Verification: Never alter or overlap confirmed bookings!
+    // 1. Strict Conflict Verification & Ownership Authorization
     let existingBookings: Booking[] = [];
     let blockedRules: BlockedPeriodRule[] = [];
 
     if (supabase) {
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+
+      if (user) {
+        const { data: spaceRow } = await supabase
+          .from("parking_spaces")
+          .select("owner_id")
+          .eq("id", spaceId)
+          .single();
+
+        if (spaceRow && spaceRow.owner_id !== user.id) {
+          return NextResponse.json(
+            { error: "Unauthorized: You do not have permission to manage this parking space.", code: "FORBIDDEN" },
+            { status: 403 }
+          );
+        }
+      }
+
       const { data: dbBookings } = await supabase
         .from("bookings")
         .select("*")
@@ -216,7 +235,7 @@ export async function POST(request: Request) {
           licensePlate: b.license_plate,
           hourlyRate: Number(b.hourly_rate),
           totalPrice: Number(b.total_price),
-          status: b.booking_status as any,
+          status: b.booking_status as Booking["status"],
           accessCode: b.access_code,
           canExtend: true,
         }));

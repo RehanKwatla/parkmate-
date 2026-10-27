@@ -1,11 +1,21 @@
 import { NextResponse } from "next/server";
 import { createServerSupabaseClient } from "@/lib/supabase/server";
+import { getClientIdentifier, checkRateLimit, createRateLimitResponse } from "@/lib/rate-limiter";
 
 const ALLOWED_MIME_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5 MB
 
 export async function POST(request: Request) {
   try {
+    // -------------------------------------------------------------------------
+    // Rate Limiting: Max 15 image uploads per minute per client
+    // -------------------------------------------------------------------------
+    const clientIp = getClientIdentifier(request);
+    const rateLimit = checkRateLimit(clientIp, "storage_uploads", { limit: 15, windowMs: 60 * 1000 });
+    if (!rateLimit.success) {
+      return createRateLimitResponse(rateLimit.limit, rateLimit.remaining, rateLimit.resetInSeconds, "media upload");
+    }
+
     const formData = await request.formData();
     const file = formData.get("file") as File | null;
 
