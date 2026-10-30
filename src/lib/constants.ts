@@ -55,10 +55,19 @@ export const CATEGORIES: CategoryItem[] = [
   { id: "airport", label: "Airport Parking", description: "Long-term lots with shuttle/train access", iconName: "Plane" },
 ];
 
+export const DEFAULT_CITY = "Pune";
+export const DEFAULT_STATE = "Maharashtra";
+export const DEFAULT_PUNE_COORDINATES = { lat: 18.5204, lng: 73.8567, zoom: 12 };
+
 export const POPULAR_DESTINATIONS = [
-  { name: "Downtown Metro Center", city: "San Francisco, CA", spotsCount: 42 },
-  { name: "Financial District", city: "New York, NY", spotsCount: 68 },
-  { name: "Convention & Tech Hub", city: "Austin, TX", spotsCount: 31 },
-  { name: "West End & Stadium", city: "Chicago, IL", spotsCount: 54 },
-  { name: "Arts & Entertainment District", city: "Los Angeles, CA", spotsCount: 47 },
+  { name: "Hinjawadi Infotech Park", city: "Pune, Maharashtra", spotsCount: 48 },
+  { name: "Shivajinagar & FC Road", city: "Pune, Maharashtra", spotsCount: 65 },
+  { name: "Koregaon Park (North Main Rd)", city: "Pune, Maharashtra", spotsCount: 38 },
+  { name: "Baner High Street", city: "Pune, Maharashtra", spotsCount: 52 },
+  { name: "Viman Nagar & Phoenix Mall", city: "Pune, Maharashtra", spotsCount: 44 },
+  { name: "Kothrud & Karve Road", city: "Pune, Maharashtra", spotsCount: 36 },
+  { name: "Wakad & Bhumkar Chowk", city: "Pune, Maharashtra", spotsCount: 40 },
+  { name: "Magarpatta Cybercity (Hadapsar)", city: "Pune, Maharashtra", spotsCount: 42 },
+  { name: "Kharadi EON Free Zone", city: "Pune, Maharashtra", spotsCount: 34 },
+  { name: "Pimpri-Chinchwad (PCMC)", city: "Pune, Maharashtra", spotsCount: 29 },
 ];

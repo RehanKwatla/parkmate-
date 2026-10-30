@@ -45,12 +45,15 @@ export default function HomePage() {
   }, [spaces, selectedCategory, selectedCityFilter]);
 
   const neighborhoods = [
-    { id: "all", name: "All San Francisco" },
-    { id: "Financial District", name: "Financial District" },
-    { id: "Nob Hill", name: "Nob Hill" },
-    { id: "SoMa", name: "SoMa & Moscone" },
-    { id: "Airport", name: "SFO Airport Area" },
-    { id: "Mission", name: "Mission District" },
+    { id: "all", name: "All Pune" },
+    { id: "Hinjawadi", name: "Hinjawadi" },
+    { id: "Koregaon Park", name: "Koregaon Park" },
+    { id: "FC Road", name: "FC Road & Deccan" },
+    { id: "Baner", name: "Baner & Aundh" },
+    { id: "Viman Nagar", name: "Viman Nagar" },
+    { id: "Magarpatta", name: "Magarpatta & Hadapsar" },
+    { id: "Kothrud", name: "Kothrud" },
+    { id: "Wakad", name: "Wakad" },
   ];
 
   return (
@@ -147,7 +150,7 @@ export default function HomePage() {
             <Car className="h-10 w-10 text-[#717171] mx-auto mb-3" />
             <h3 className="text-lg font-bold text-[#222222]">No spaces found in this category</h3>
             <p className="text-sm text-[#717171] mt-1 mb-4">
-              Try changing the filter or viewing all available spaces across San Francisco.
+              Try changing the filter or viewing all available spaces across Pune.
             </p>
             <Button
               variant="outline"

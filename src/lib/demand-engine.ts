@@ -86,102 +86,108 @@ export interface DemandEstimateResult {
   nearbyAlternativeLocations: AlternativeLocation[];
 }
 
-// Configured local event flags in San Francisco metro area
+// Configured local event flags in Pune metro area
 export const DEFAULT_MANUAL_EVENT_FLAGS: EventFlag[] = [
   {
-    id: "evt-moscone-summit",
-    name: "Moscone Center Tech Expo & Developer Summit",
-    venueOrArea: "Moscone Center",
-    neighborhood: "SoMa",
-    lat: 37.7842,
-    lng: -122.4015,
-    radiusMiles: 0.8,
-    startHour: 8,
-    endHour: 18,
-    daysOfWeek: [1, 2, 3, 4], // Mon - Thu
-    attendanceEstimate: 14000,
-    demandBonus: 32,
-    description: "Major multi-day convention drawing heavy commuter & rideshare traffic into SoMa.",
-    isActive: true,
-  },
-  {
-    id: "evt-chase-center",
-    name: "Golden State Warriors Evening Game",
-    venueOrArea: "Chase Center",
-    neighborhood: "Mission Bay",
-    lat: 37.768,
-    lng: -122.3877,
+    id: "evt-hinjawadi-tech-summit",
+    name: "Hinjawadi Infotech Summit & Commuter Rush",
+    venueOrArea: "Rajiv Gandhi Infotech Park Phase 1",
+    neighborhood: "Hinjawadi",
+    lat: 18.5913,
+    lng: 73.7389,
     radiusMiles: 1.2,
-    startHour: 17,
-    endHour: 22,
-    daysOfWeek: [2, 4, 5, 6], // Tue, Thu, Fri, Sat
-    attendanceEstimate: 18000,
-    demandBonus: 35,
-    description: "NBA arena event causing parking saturation in Mission Bay and South Beach.",
+    startHour: 8,
+    endHour: 19,
+    daysOfWeek: [1, 2, 3, 4, 5], // Mon - Fri
+    attendanceEstimate: 25000,
+    demandBonus: 32,
+    description: "Peak corporate commuter traffic across Phase 1 & 2 IT corridors.",
     isActive: true,
   },
   {
-    id: "evt-oracle-park",
-    name: "SF Giants Baseball Game",
-    venueOrArea: "Oracle Park",
-    neighborhood: "South Beach",
-    lat: 37.7786,
-    lng: -122.3893,
+    id: "evt-fc-road-weekend",
+    name: "FC Road & Fergusson College Cultural & Dining Peak",
+    venueOrArea: "Fergusson College Road",
+    neighborhood: "FC Road",
+    lat: 18.5186,
+    lng: 73.8415,
+    radiusMiles: 0.8,
+    startHour: 16,
+    endHour: 23,
+    daysOfWeek: [5, 6, 0], // Fri, Sat, Sun
+    attendanceEstimate: 18000,
+    demandBonus: 30,
+    description: "High restaurant, boutique shopping, and college cultural festival turnover.",
+    isActive: true,
+  },
+  {
+    id: "evt-kp-nightlife",
+    name: "Koregaon Park Weekend Dining & Cafe Surge",
+    venueOrArea: "Lane 5-7 North Main Road",
+    neighborhood: "Koregaon Park",
+    lat: 18.5362,
+    lng: 73.8940,
+    radiusMiles: 0.9,
+    startHour: 18,
+    endHour: 24,
+    daysOfWeek: [5, 6, 0], // Fri, Sat, Sun
+    attendanceEstimate: 15000,
+    demandBonus: 28,
+    description: "Nightlife, fine dining, and boutique lifestyle traffic in KP.",
+    isActive: true,
+  },
+  {
+    id: "evt-phoenix-viman",
+    name: "Phoenix Marketcity Weekend Shopping Surge",
+    venueOrArea: "Phoenix Marketcity, Viman Nagar",
+    neighborhood: "Viman Nagar",
+    lat: 18.5620,
+    lng: 73.9168,
     radiusMiles: 1.0,
     startHour: 12,
-    endHour: 17,
-    daysOfWeek: [0, 5, 6], // Sun, Fri, Sat
-    attendanceEstimate: 22000,
-    demandBonus: 28,
-    description: "High stadium traffic along the Embarcadero and South Beach corridors.",
+    endHour: 22,
+    daysOfWeek: [0, 6], // Sat, Sun
+    attendanceEstimate: 30000,
+    demandBonus: 26,
+    description: "Massive retail footfall and airport corridor commuter confluence.",
     isActive: true,
   },
   {
-    id: "evt-ferry-market",
-    name: "Ferry Building Farmers & Artisan Market",
-    venueOrArea: "SF Ferry Building",
-    neighborhood: "Financial District",
-    lat: 37.7955,
-    lng: -122.3937,
-    radiusMiles: 0.6,
-    startHour: 8,
-    endHour: 14,
-    daysOfWeek: [2, 4, 6], // Tue, Thu, Sat
-    attendanceEstimate: 7500,
-    demandBonus: 18,
-    description: "Waterfront commercial corridor foot & vehicle traffic surge.",
-    isActive: true,
-  },
-  {
-    id: "evt-broadway-nightlife",
-    name: "North Beach & Chinatown Weekend Dining Peak",
-    venueOrArea: "North Beach Strip",
-    neighborhood: "North Beach",
-    lat: 37.7995,
-    lng: -122.408,
-    radiusMiles: 0.7,
-    startHour: 18,
-    endHour: 23,
-    daysOfWeek: [5, 6], // Fri, Sat
-    attendanceEstimate: 9000,
-    demandBonus: 22,
-    description: "High restaurant and nightlife turnover with limited on-street capacity.",
+    id: "evt-balewadi-stadium",
+    name: "Shree Shiv Chhatrapati Sports Complex Games",
+    venueOrArea: "Balewadi Stadium, Baner Corridor",
+    neighborhood: "Baner",
+    lat: 18.5772,
+    lng: 73.7683,
+    radiusMiles: 1.5,
+    startHour: 15,
+    endHour: 22,
+    daysOfWeek: [2, 4, 6, 0],
+    attendanceEstimate: 18000,
+    demandBonus: 24,
+    description: "National games and concerts causing traffic buildup near Baner and Expressway.",
     isActive: true,
   },
 ];
 
-// Neighborhood baseline demand scores (reflecting density, parking meter rates, and transit connectivity)
+// Neighborhood baseline demand scores in Pune
 export const NEIGHBORHOOD_BASELINES: Record<string, { baseScore: number; avgHourlyRate: number; label: string }> = {
-  "financial district": { baseScore: 36, avgHourlyRate: 7.5, label: "Financial District" },
-  soma: { baseScore: 32, avgHourlyRate: 7.0, label: "SoMa (South of Market)" },
-  "mission bay": { baseScore: 30, avgHourlyRate: 6.5, label: "Mission Bay" },
-  "nob hill": { baseScore: 22, avgHourlyRate: 5.0, label: "Nob Hill" },
-  "south beach": { baseScore: 28, avgHourlyRate: 6.5, label: "South Beach" },
-  mission: { baseScore: 24, avgHourlyRate: 5.5, label: "Mission District" },
-  "north beach": { baseScore: 25, avgHourlyRate: 6.0, label: "North Beach" },
-  marina: { baseScore: 20, avgHourlyRate: 5.0, label: "Marina District" },
-  downtown: { baseScore: 35, avgHourlyRate: 7.25, label: "Downtown Metro" },
-  generic: { baseScore: 20, avgHourlyRate: 5.0, label: "Metro Area" },
+  hinjawadi: { baseScore: 38, avgHourlyRate: 40, label: "Hinjawadi Infotech Park" },
+  shivajinagar: { baseScore: 36, avgHourlyRate: 50, label: "Shivajinagar Central" },
+  "fc road": { baseScore: 38, avgHourlyRate: 50, label: "FC Road & Deccan" },
+  deccan: { baseScore: 35, avgHourlyRate: 45, label: "Deccan Gymkhana" },
+  "koregaon park": { baseScore: 38, avgHourlyRate: 60, label: "Koregaon Park (KP)" },
+  baner: { baseScore: 34, avgHourlyRate: 45, label: "Baner High Street" },
+  aundh: { baseScore: 32, avgHourlyRate: 40, label: "Aundh & Parihar Chowk" },
+  kothrud: { baseScore: 30, avgHourlyRate: 35, label: "Kothrud & Karve Road" },
+  "viman nagar": { baseScore: 35, avgHourlyRate: 45, label: "Viman Nagar & Airport Area" },
+  kharadi: { baseScore: 34, avgHourlyRate: 45, label: "Kharadi EON Free Zone" },
+  wakad: { baseScore: 32, avgHourlyRate: 35, label: "Wakad & Bhumkar Chowk" },
+  magarpatta: { baseScore: 34, avgHourlyRate: 40, label: "Magarpatta Cybercity" },
+  hadapsar: { baseScore: 30, avgHourlyRate: 30, label: "Hadapsar Industrial Hub" },
+  pimpri: { baseScore: 28, avgHourlyRate: 30, label: "Pimpri PCMC" },
+  chinchwad: { baseScore: 28, avgHourlyRate: 30, label: "Chinchwad Station" },
+  generic: { baseScore: 25, avgHourlyRate: 40, label: "Pune Metro Area" },
 };
 
 /**
@@ -212,17 +218,41 @@ export function resolveNeighborhood(destinationOrAddress?: string): string {
       return key;
     }
   }
-  if (lower.includes("market") || lower.includes("montgomery") || lower.includes("california st")) {
-    return "financial district";
+  if (lower.includes("hinjawadi") || lower.includes("infotech") || lower.includes("wipro circle")) {
+    return "hinjawadi";
   }
-  if (lower.includes("howard") || lower.includes("folsom") || lower.includes("moscone")) {
-    return "soma";
+  if (lower.includes("koregaon") || lower.includes("north main") || lower.includes("german bakery")) {
+    return "koregaon park";
   }
-  if (lower.includes("chase") || lower.includes("warriors") || lower.includes("16th st")) {
-    return "mission bay";
+  if (lower.includes("fergusson") || lower.includes("fc road") || lower.includes("goodluck")) {
+    return "fc road";
   }
-  if (lower.includes("pine") || lower.includes("california") || lower.includes("cathedral")) {
-    return "nob hill";
+  if (lower.includes("deccan") || lower.includes("jm road") || lower.includes("sambhajinagar")) {
+    return "deccan";
+  }
+  if (lower.includes("baner") || lower.includes("balewadi")) {
+    return "baner";
+  }
+  if (lower.includes("aundh") || lower.includes("parihar") || lower.includes("iti road")) {
+    return "aundh";
+  }
+  if (lower.includes("kothrud") || lower.includes("karve") || lower.includes("vanaz")) {
+    return "kothrud";
+  }
+  if (lower.includes("viman") || lower.includes("lohegaon") || lower.includes("airport")) {
+    return "viman nagar";
+  }
+  if (lower.includes("kharadi") || lower.includes("eon") || lower.includes("wtc")) {
+    return "kharadi";
+  }
+  if (lower.includes("wakad") || lower.includes("bhumkar") || lower.includes("hinjewadi")) {
+    return "wakad";
+  }
+  if (lower.includes("magarpatta") || lower.includes("hadapsar") || lower.includes("amanora")) {
+    return "magarpatta";
+  }
+  if (lower.includes("pimpri") || lower.includes("chinchwad") || lower.includes("pcmc")) {
+    return "chinchwad";
   }
   return "generic";
 }

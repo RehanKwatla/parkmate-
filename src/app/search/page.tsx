@@ -34,7 +34,7 @@ import { SearchResponsePayload } from "@/app/api/search/route";
 
 function SearchPageContent() {
   const searchParams = useSearchParams();
-  const initialDestination = searchParams.get("destination") || "";
+  const initialDestination = searchParams.get("destination") || "Pune";
   const initialVehicle = (searchParams.get("vehicle") as VehicleType) || "all";
 
   // Filter States
@@ -50,15 +50,25 @@ function SearchPageContent() {
 
   const [onlyCovered, setOnlyCovered] = React.useState(false);
   const [onlyEv, setOnlyEv] = React.useState(false);
-  const [maxPrice, setMaxPrice] = React.useState<number>(15);
+  const [maxPrice, setMaxPrice] = React.useState<number>(100);
   const [maxDistanceMiles, setMaxDistanceMiles] = React.useState<number | "any">("any");
   const [sortBy, setSortBy] = React.useState<"recommended" | "price_asc" | "price_desc" | "rating" | "distance">("recommended");
   
   // UI states
   const [mobileView, setMobileView] = React.useState<"list" | "map">("list");
+  const [desktopView, setDesktopView] = React.useState<"split" | "list" | "map">("split");
   const [highlightedSpaceId, setHighlightedSpaceId] = React.useState<string | null>(null);
   const [showFiltersModal, setShowFiltersModal] = React.useState(false);
   const [showFactorsDrawer, setShowFactorsDrawer] = React.useState(false);
+
+  // Synchronized card selection from map marker click
+  const handleSelectSpaceFromMap = React.useCallback((id: string) => {
+    setHighlightedSpaceId(id);
+    const cardEl = document.getElementById(`parking-card-${id}`);
+    if (cardEl) {
+      cardEl.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, []);
 
   // Server Search Response State
   const [isLoading, setIsLoading] = React.useState(true);
@@ -73,7 +83,7 @@ function SearchPageContent() {
     arrivalDateTime !== "" && departureDateTime !== "",
     onlyCovered,
     onlyEv,
-    maxPrice < 15,
+    maxPrice < 100,
     maxDistanceMiles !== "any",
     sortBy !== "recommended",
   ].filter(Boolean).length;
@@ -89,7 +99,7 @@ function SearchPageContent() {
     setDepartureDateTime("");
     setOnlyCovered(false);
     setOnlyEv(false);
-    setMaxPrice(15);
+    setMaxPrice(100);
     setMaxDistanceMiles("any");
     setSortBy("recommended");
   };
@@ -110,7 +120,7 @@ function SearchPageContent() {
       if (departureDateTime) params.set("endTime", new Date(departureDateTime).toISOString());
       if (onlyCovered) params.set("onlyCovered", "true");
       if (onlyEv) params.set("onlyEv", "true");
-      if (maxPrice && maxPrice < 25) params.set("maxPrice", maxPrice.toString());
+      if (maxPrice && maxPrice < 150) params.set("maxPrice", maxPrice.toString());
       if (maxDistanceMiles !== "any") params.set("maxDistanceMiles", maxDistanceMiles.toString());
       if (sortBy) params.set("sortBy", sortBy);
 
@@ -285,6 +295,49 @@ function SearchPageContent() {
                 <span>Filters {activeFiltersCount > 0 ? `(${activeFiltersCount})` : ""}</span>
               </button>
 
+              {/* Desktop View Mode Toggle (List / Split / Map) */}
+              <div className="hidden lg:flex items-center bg-neutral-100 p-0.5 rounded-xl border border-neutral-200">
+                <button
+                  type="button"
+                  onClick={() => setDesktopView("list")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition ${
+                    desktopView === "list"
+                      ? "bg-white text-neutral-900 shadow-xs"
+                      : "text-neutral-600 hover:text-neutral-900"
+                  }`}
+                  title="List view only"
+                >
+                  <List className="w-3.5 h-3.5" />
+                  <span>List</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDesktopView("split")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition ${
+                    desktopView === "split"
+                      ? "bg-white text-neutral-900 shadow-xs"
+                      : "text-neutral-600 hover:text-neutral-900"
+                  }`}
+                  title="Split view"
+                >
+                  <SlidersHorizontal className="w-3.5 h-3.5" />
+                  <span>Split</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setDesktopView("map")}
+                  className={`px-2.5 py-1 rounded-lg text-xs font-bold flex items-center gap-1 transition ${
+                    desktopView === "map"
+                      ? "bg-white text-neutral-900 shadow-xs"
+                      : "text-neutral-600 hover:text-neutral-900"
+                  }`}
+                  title="Full map view"
+                >
+                  <Map className="w-3.5 h-3.5" />
+                  <span>Map</span>
+                </button>
+              </div>
+
               {activeFiltersCount > 0 && (
                 <button
                   type="button"
@@ -424,21 +477,21 @@ function SearchPageContent() {
                 <div>
                   <div className="flex items-center justify-between mb-1">
                     <label className="font-semibold text-neutral-700">Max Budget</label>
-                    <span className="font-extrabold text-neutral-900">${maxPrice}/hr</span>
+                    <span className="font-extrabold text-neutral-900">₹{maxPrice}/hr</span>
                   </div>
                   <input
                     type="range"
-                    min="4"
-                    max="25"
-                    step="1"
+                    min="20"
+                    max="150"
+                    step="5"
                     value={maxPrice}
                     onChange={(e) => setMaxPrice(Number(e.target.value))}
                     className="w-full accent-[#FF5A5F] cursor-pointer"
                   />
                   <div className="flex justify-between text-[10px] text-neutral-400 mt-0.5">
-                    <span>$4/hr</span>
-                    <span>$15/hr</span>
-                    <span>$25/hr</span>
+                    <span>₹20/hr</span>
+                    <span>₹80/hr</span>
+                    <span>₹150/hr</span>
                   </div>
                 </div>
 
@@ -757,8 +810,14 @@ function SearchPageContent() {
               {validSpaces.map((item) => (
                 <div
                   key={item.space.id}
+                  id={`parking-card-${item.space.id}`}
                   onMouseEnter={() => setHighlightedSpaceId(item.space.id)}
                   onMouseLeave={() => setHighlightedSpaceId(null)}
+                  className={`transition-all duration-200 rounded-3xl ${
+                    highlightedSpaceId === item.space.id
+                      ? "ring-2 ring-[#FF5A5F] shadow-lg scale-[1.01]"
+                      : ""
+                  }`}
                 >
                   <ParkingCard
                     space={item.space}
@@ -809,8 +868,14 @@ function SearchPageContent() {
                     {alternativeSpaces.map((item) => (
                       <div
                         key={item.space.id}
+                        id={`parking-card-${item.space.id}`}
                         onMouseEnter={() => setHighlightedSpaceId(item.space.id)}
                         onMouseLeave={() => setHighlightedSpaceId(null)}
+                        className={`transition-all duration-200 rounded-3xl ${
+                          highlightedSpaceId === item.space.id
+                            ? "ring-2 ring-[#FF5A5F] shadow-lg scale-[1.01]"
+                            : ""
+                        }`}
                       >
                         <ParkingCard
                           space={item.space}
@@ -830,16 +895,22 @@ function SearchPageContent() {
           )}
         </div>
 
-        {/* Right: Reusable Map Adapter (Sticky on Desktop) */}
+        {/* Right: Reusable Leaflet OpenStreetMap Adapter (Sticky on Desktop) */}
         <div
-          className={`w-full lg:w-5/12 h-[calc(100vh-140px)] sticky top-[140px] p-4 lg:p-6 ${
+          className={`${
+            desktopView === "list"
+              ? "hidden"
+              : desktopView === "map"
+              ? "w-full h-[calc(100vh-140px)]"
+              : "w-full lg:w-5/12 h-[calc(100vh-140px)]"
+          } sticky top-[140px] p-4 lg:p-6 ${
             mobileView === "list" ? "hidden lg:block" : "block h-[calc(100vh-140px)]"
           }`}
         >
           <MapAdapter
             spaces={mapSpaces}
             selectedSpaceId={highlightedSpaceId}
-            onSelectSpace={(id) => setHighlightedSpaceId(id)}
+            onSelectSpace={handleSelectSpaceFromMap}
             className="h-full w-full"
           />
         </div>

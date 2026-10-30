@@ -47,8 +47,8 @@ export interface SearchResponsePayload {
   demandEstimate?: DemandEstimateResult;
 }
 
-// Default reference coordinates for San Francisco Financial District
-const DEFAULT_SF_COORDS = { lat: 37.7915, lng: -122.3995 };
+// Default reference coordinates for Pune Central (Latitude: 18.5204, Longitude: 73.8567)
+const DEFAULT_PUNE_COORDS = { lat: 18.5204, lng: 73.8567 };
 
 export async function GET(request: Request) {
   try {
@@ -97,20 +97,29 @@ export async function GET(request: Request) {
       }
     }
 
-    // Determine target destination coordinates
+    // Determine target destination coordinates in Pune
     let destCoords: { lat: number; lng: number } | undefined = undefined;
     if (q.destLat !== undefined && q.destLng !== undefined) {
       destCoords = { lat: q.destLat, lng: q.destLng };
     } else if (q.destination) {
-      // Basic geocode heuristic for demo/testing
       const dLower = q.destination.toLowerCase();
-      if (dLower.includes("nob hill")) destCoords = { lat: 37.791, lng: -122.411 };
-      else if (dLower.includes("soma") || dLower.includes("moscone")) destCoords = { lat: 37.7842, lng: -122.4015 };
-      else if (dLower.includes("mission")) destCoords = { lat: 37.7675, lng: -122.4221 };
-      else if (dLower.includes("airport") || dLower.includes("sfo")) destCoords = { lat: 37.6213, lng: -122.379 };
-      else destCoords = DEFAULT_SF_COORDS;
+      if (dLower.includes("hinjawadi") || dLower.includes("infotech")) destCoords = { lat: 18.5913, lng: 73.7389 };
+      else if (dLower.includes("koregaon") || dLower.includes("kp")) destCoords = { lat: 18.5362, lng: 73.8940 };
+      else if (dLower.includes("fergusson") || dLower.includes("fc road")) destCoords = { lat: 18.5186, lng: 73.8415 };
+      else if (dLower.includes("deccan")) destCoords = { lat: 18.5170, lng: 73.8420 };
+      else if (dLower.includes("baner") || dLower.includes("balewadi")) destCoords = { lat: 18.5590, lng: 73.7868 };
+      else if (dLower.includes("aundh") || dLower.includes("parihar")) destCoords = { lat: 18.5602, lng: 73.8031 };
+      else if (dLower.includes("kothrud") || dLower.includes("karve")) destCoords = { lat: 18.5074, lng: 73.8077 };
+      else if (dLower.includes("viman") || dLower.includes("airport")) destCoords = { lat: 18.5679, lng: 73.9143 };
+      else if (dLower.includes("kharadi") || dLower.includes("eon")) destCoords = { lat: 18.5516, lng: 73.9407 };
+      else if (dLower.includes("wakad") || dLower.includes("bhumkar")) destCoords = { lat: 18.5987, lng: 73.7686 };
+      else if (dLower.includes("magarpatta") || dLower.includes("hadapsar")) destCoords = { lat: 18.5158, lng: 73.9272 };
+      else if (dLower.includes("pimpri")) destCoords = { lat: 18.6279, lng: 73.8009 };
+      else if (dLower.includes("chinchwad")) destCoords = { lat: 18.6385, lng: 73.7928 };
+      else if (dLower.includes("shivajinagar")) destCoords = { lat: 18.5308, lng: 73.8475 };
+      else destCoords = DEFAULT_PUNE_COORDS;
     } else {
-      destCoords = DEFAULT_SF_COORDS;
+      destCoords = DEFAULT_PUNE_COORDS;
     }
 
     const supabase = await createServerSupabaseClient();

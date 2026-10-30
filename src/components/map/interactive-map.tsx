@@ -24,10 +24,9 @@ export function InteractiveMap({
   const [hoveredSpaceId, setHoveredSpaceId] = React.useState<string | null>(null);
   const [activeSpace, setActiveSpace] = React.useState<ParkingSpace | null>(null);
 
-  // Compute bounding box or relative coordinate placement
-  // SF center reference: lat 37.78, lng -122.40
-  const centerLat = 37.782;
-  const centerLng = -122.405;
+  // Pune center reference: lat 18.5204, lng 73.8567
+  const centerLat = 18.5204;
+  const centerLng = 73.8567;
 
   const getPositionStyle = (lat: number, lng: number) => {
     // Map offsets to percentage coordinates within container
@@ -132,7 +131,7 @@ export function InteractiveMap({
       <div className="absolute top-4 left-4 z-20">
         <div className="flex items-center gap-2 rounded-full bg-white/95 backdrop-blur-md px-3.5 py-1.5 text-xs font-bold text-[#222222] shadow-md border border-[#EAEAEA]">
           <span className="h-2 w-2 rounded-full bg-[#10B981] animate-pulse" />
-          <span>San Francisco Metro Area</span>
+          <span>Pune Metro Area</span>
           <span className="text-[#717171] font-normal">({spaces.length} spots)</span>
         </div>
       </div>

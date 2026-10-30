@@ -149,7 +149,7 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
           <div className="flex items-center gap-2">
             <Link href="/" className="hover:text-[#222222]">Home</Link>
             <ChevronRight className="h-3 w-3" />
-            <Link href="/search" className="hover:text-[#222222]">San Francisco</Link>
+            <Link href="/search" className="hover:text-[#222222]">Pune</Link>
             <ChevronRight className="h-3 w-3" />
             <span className="font-semibold text-[#222222] truncate max-w-[200px] sm:max-w-none">
               {space.title}
@@ -482,7 +482,7 @@ export function ListingDetailClient({ space }: ListingDetailClientProps) {
                   <span className="font-bold text-[#222222]">{formatCurrency(taxes)}</span>
                 </div>
                 <div className="border-t border-[#EAEAEA] pt-3 flex justify-between text-sm font-extrabold text-[#222222]">
-                  <span>Total (USD)</span>
+                  <span>Total (INR)</span>
                   <span className="text-base text-[#FF5A5F]">{formatCurrency(totalPrice)}</span>
                 </div>
               </div>

@@ -39,13 +39,16 @@ import {
 } from "@/lib/validations";
 import { SpaceCategory, VehicleType, AccessType } from "@/types/parking";
 
-const SF_PRESETS = [
-  { name: "Financial District", address: "245 Market St", neighborhood: "Financial District", lat: 37.7915, lng: -122.3995 },
-  { name: "SOMA / Moscone", address: "780 Howard St", neighborhood: "SOMA", lat: 37.7842, lng: -122.4015 },
-  { name: "Nob Hill", address: "712 Pine Ave", neighborhood: "Nob Hill", lat: 37.7910, lng: -122.4110 },
-  { name: "Mission District", address: "988 Valencia St", neighborhood: "Mission", lat: 37.7580, lng: -122.4215 },
-  { name: "Marina District", address: "2100 Chestnut St", neighborhood: "Marina", lat: 37.8005, lng: -122.4370 },
-  { name: "Embarcadero Pier", address: "1 Ferry Building", neighborhood: "Embarcadero", lat: 37.7955, lng: -122.3937 },
+const PUNE_PRESETS = [
+  { name: "Hinjawadi Phase 1", address: "Embassy TechZone Rd", neighborhood: "Hinjawadi", lat: 18.5913, lng: 73.7389 },
+  { name: "Koregaon Park", address: "Lane 5, North Main Rd", neighborhood: "Koregaon Park", lat: 18.5362, lng: 73.8940 },
+  { name: "FC Road / Deccan", address: "Fergusson College Rd", neighborhood: "FC Road", lat: 18.5186, lng: 73.8415 },
+  { name: "Baner High Street", address: "Balewadi Link Rd", neighborhood: "Baner", lat: 18.5590, lng: 73.7868 },
+  { name: "Viman Nagar", address: "Symbiosis Rd", neighborhood: "Viman Nagar", lat: 18.5679, lng: 73.9143 },
+  { name: "Magarpatta City", address: "Cybercity Ring Rd", neighborhood: "Magarpatta", lat: 18.5158, lng: 73.9272 },
+  { name: "Kothrud", address: "Karve Road", neighborhood: "Kothrud", lat: 18.5074, lng: 73.8077 },
+  { name: "Aundh", address: "Parihar Chowk", neighborhood: "Aundh", lat: 18.5602, lng: 73.8031 },
+  { name: "Wakad", address: "Datta Mandir Rd", neighborhood: "Wakad", lat: 18.5987, lng: 73.7686 },
 ];
 
 const VEHICLE_CLEARANCE_PRESETS: Record<VehicleType, { label: string; minClearance: number }> = {
@@ -82,10 +85,10 @@ function WizardContent() {
 
   // Form State: Step 1 Location
   const [address, setAddress] = React.useState("");
-  const [neighborhood, setNeighborhood] = React.useState("Financial District");
-  const [city, setCity] = React.useState("San Francisco");
-  const [latitude, setLatitude] = React.useState(37.7915);
-  const [longitude, setLongitude] = React.useState(-122.3995);
+  const [neighborhood, setNeighborhood] = React.useState("Hinjawadi");
+  const [city, setCity] = React.useState("Pune");
+  const [latitude, setLatitude] = React.useState(18.5913);
+  const [longitude, setLongitude] = React.useState(73.7389);
 
   // Step 2 Type & Access
   const [category, setCategory] = React.useState<SpaceCategory>("covered");
@@ -122,9 +125,9 @@ function WizardContent() {
   const [walkingDistance, setWalkingDistance] = React.useState("2 min walk to transit");
 
   // Step 6 Pricing
-  const [pricePerHour, setPricePerHour] = React.useState("6.50");
-  const [pricePerDay, setPricePerDay] = React.useState("42.00");
-  const [pricePerMonth, setPricePerMonth] = React.useState("380.00");
+  const [pricePerHour, setPricePerHour] = React.useState("40.00");
+  const [pricePerDay, setPricePerDay] = React.useState("250.00");
+  const [pricePerMonth, setPricePerMonth] = React.useState("2500.00");
 
   // Step 7 Availability
   const [activeDays, setActiveDays] = React.useState<number[]>([1, 2, 3, 4, 5]); // Mon-Fri
@@ -156,8 +159,8 @@ function WizardContent() {
             setTitle(s.title || "");
             setDescription(s.description || "");
             setAddress(s.address || "");
-            setNeighborhood(s.neighborhood || "Financial District");
-            setCity(s.city || "San Francisco");
+            setNeighborhood(s.neighborhood || "Hinjawadi");
+            setCity(s.city || "Pune");
             if (s.coordinates) {
               setLatitude(s.coordinates.lat);
               setLongitude(s.coordinates.lng);
@@ -193,8 +196,8 @@ function WizardContent() {
     };
   }, [draftIdParam]);
 
-  // Quick SF preset handler
-  const handleApplyPreset = (preset: typeof SF_PRESETS[0]) => {
+  // Quick Pune preset handler
+  const handleApplyPreset = (preset: typeof PUNE_PRESETS[0]) => {
     setAddress(preset.address);
     setNeighborhood(preset.neighborhood);
     setLatitude(preset.lat);
@@ -403,12 +406,12 @@ function WizardContent() {
       title: title || (address ? `Private Space at ${address}` : "Untitled Parking Space"),
       description: description || "Convenient, secure parking spot managed by host.",
       address: address || "Pending Address",
-      neighborhood: neighborhood || "San Francisco",
-      city: city || "San Francisco",
-      latitude: Number(latitude) || 37.7915,
-      longitude: Number(longitude) || -122.3995,
-      pricePerHour: parseFloat(pricePerHour) || 6.50,
-      pricePerDay: parseFloat(pricePerDay) || (parseFloat(pricePerHour) || 6.50) * 6.5,
+      neighborhood: neighborhood || "Hinjawadi",
+      city: city || "Pune",
+      latitude: Number(latitude) || 18.5913,
+      longitude: Number(longitude) || 73.7389,
+      pricePerHour: parseFloat(pricePerHour) || 40.00,
+      pricePerDay: parseFloat(pricePerDay) || (parseFloat(pricePerHour) || 40.00) * 6,
       pricePerMonth: pricePerMonth ? parseFloat(pricePerMonth) : null,
       category,
       photos: photos.length > 0 ? photos : ["https://images.unsplash.com/photo-1506521781263-d8422e82f27a?auto=format&fit=crop&w=1200&q=80"],
@@ -655,13 +658,13 @@ function WizardContent() {
               </p>
             </div>
 
-            {/* Quick SF Presets */}
+            {/* Quick Pune Presets */}
             <div className="space-y-2">
               <label className="text-xs font-bold text-neutral-600 uppercase tracking-wider">
-                Quick Select San Francisco Locations
+                Quick Select Pune Locations
               </label>
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                {SF_PRESETS.map((p) => (
+                {PUNE_PRESETS.map((p) => (
                   <button
                     key={p.name}
                     type="button"
@@ -703,7 +706,7 @@ function WizardContent() {
                 <Input
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
-                  placeholder="San Francisco"
+                  placeholder="Pune"
                 />
               </div>
 

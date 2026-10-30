@@ -62,7 +62,7 @@ export function isStripeConfigured(): boolean {
  * Processes a payment server-side with strict idempotency and transparent test-mode labels.
  */
 export async function processPayment(params: ProcessPaymentParams): Promise<PaymentTransactionResult> {
-  const { amount, currency = "USD", paymentMethod = "test_card_visa", simulateFailure = false, idempotencyKey } = params;
+  const { amount, currency = "INR", paymentMethod = "test_card_visa", simulateFailure = false, idempotencyKey } = params;
 
   // 1. Check Idempotency Key
   if (idempotencyKey) {

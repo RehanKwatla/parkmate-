@@ -1,0 +1,511 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>ParkMate — Prototype Summary & Feature Architecture</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 16mm 14mm 16mm 14mm;
+    }
+    
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      color: #1e293b;
+      background-color: #ffffff;
+      line-height: 1.5;
+      font-size: 13px;
+    }
+
+    .header-banner {
+      background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+      color: #ffffff;
+      padding: 24px 28px;
+      border-radius: 12px;
+      margin-bottom: 24px;
+    }
+
+    .header-title-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+
+    h1 {
+      font-size: 24px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      color: #ffffff;
+    }
+
+    .badge-prototype {
+      background-color: #38bdf8;
+      color: #0f172a;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      padding: 4px 10px;
+      border-radius: 9999px;
+      letter-spacing: 0.5px;
+    }
+
+    .subtitle {
+      color: #94a3b8;
+      font-size: 13.5px;
+      font-weight: 400;
+      max-width: 650px;
+    }
+
+    .metadata-strip {
+      margin-top: 14px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(255, 255, 255, 0.15);
+      display: flex;
+      gap: 20px;
+      font-size: 11.5px;
+      color: #cbd5e1;
+    }
+
+    .metadata-strip span strong {
+      color: #ffffff;
+    }
+
+    h2 {
+      font-size: 16px;
+      font-weight: 700;
+      color: #0f172a;
+      margin-top: 22px;
+      margin-bottom: 10px;
+      padding-bottom: 4px;
+      border-bottom: 2px solid #e2e8f0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    h3 {
+      font-size: 13.5px;
+      font-weight: 700;
+      color: #1e293b;
+      margin-top: 10px;
+      margin-bottom: 4px;
+    }
+
+    p {
+      margin-bottom: 10px;
+      color: #334155;
+    }
+
+    .section-block {
+      page-break-inside: avoid;
+      margin-bottom: 18px;
+    }
+
+    .grid-2 {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .grid-3 {
+      display: grid;
+      grid-template-columns: 1fr 1fr 1fr;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .card {
+      background: #f8fafc;
+      border: 1px solid #e2e8f0;
+      border-radius: 8px;
+      padding: 12px 14px;
+      page-break-inside: avoid;
+    }
+
+    .card-highlight {
+      background: #eff6ff;
+      border: 1px solid #bfdbfe;
+    }
+
+    .card-title {
+      font-size: 12.5px;
+      font-weight: 700;
+      color: #1e40af;
+      margin-bottom: 4px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .card-desc {
+      font-size: 11.5px;
+      color: #475569;
+      line-height: 1.45;
+    }
+
+    .table-container {
+      margin-top: 10px;
+      margin-bottom: 16px;
+      page-break-inside: avoid;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 11.5px;
+      text-align: left;
+    }
+
+    th {
+      background-color: #f1f5f9;
+      color: #334155;
+      font-weight: 700;
+      padding: 7px 10px;
+      border: 1px solid #e2e8f0;
+    }
+
+    td {
+      padding: 7px 10px;
+      border: 1px solid #e2e8f0;
+      vertical-align: top;
+      color: #334155;
+    }
+
+    tr:nth-child(even) td {
+      background-color: #f8fafc;
+    }
+
+    .tag {
+      display: inline-block;
+      font-size: 10px;
+      font-weight: 600;
+      padding: 2px 6px;
+      border-radius: 4px;
+      background-color: #e2e8f0;
+      color: #334155;
+      margin-right: 4px;
+      margin-bottom: 2px;
+    }
+
+    .tag-blue { background-color: #dbeafe; color: #1e40af; }
+    .tag-green { background-color: #dcfce7; color: #166534; }
+    .tag-amber { background-color: #fef3c7; color: #92400e; }
+    .tag-purple { background-color: #f3e8ff; color: #6b21a8; }
+
+    ul {
+      margin-left: 18px;
+      margin-bottom: 10px;
+    }
+
+    li {
+      margin-bottom: 4px;
+      color: #334155;
+      font-size: 12px;
+    }
+
+    .footer {
+      margin-top: 24px;
+      padding-top: 12px;
+      border-top: 1px solid #e2e8f0;
+      font-size: 10.5px;
+      color: #94a3b8;
+      display: flex;
+      justify-content: space-between;
+      page-break-inside: avoid;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- HEADER -->
+  <div class="header-banner">
+    <div class="header-title-row">
+      <h1>ParkMate 🚗</h1>
+      <span class="badge-prototype">Prototype Architecture Report</span>
+    </div>
+    <div class="subtitle">
+      The Smart Urban Parking-Space Marketplace inspired by Airbnb's high-trust clarity, visual transparency, and seamless interaction design.
+    </div>
+    <div class="metadata-strip">
+      <span><strong>Stack:</strong> Next.js 16 (App Router) + Supabase (PostgreSQL 15)</span>
+      <span><strong>Language:</strong> Strict TypeScript & Zod</span>
+      <span><strong>Styling:</strong> Tailwind CSS v4</span>
+      <span><strong>Date:</strong> October 2026</span>
+    </div>
+  </div>
+
+  <!-- SECTION 1: EXECUTIVE SUMMARY -->
+  <div class="section-block">
+    <h2>1. Executive Summary & Core Concept</h2>
+    <p>
+      In congested metropolitan areas, urban drivers lose an average of 15 to 20 minutes and significant fuel circling for parking, while private residential driveways, carports, and commercial bays sit vacant during standard business hours. 
+    </p>
+    <p>
+      <strong>ParkMate</strong> solves this mismatch through a high-trust peer-to-peer and commercial marketplace. It enables homeowners to monetize unused workday parking while giving drivers guaranteed, clearance-verified, and fail-safe reservations near their destinations.
+    </p>
+
+    <div class="grid-2">
+      <div class="card card-highlight">
+        <div class="card-title">🚗 For Urban Drivers & Commuters</div>
+        <div class="card-desc">
+          Guaranteed reservations with physical clearance verification, real-time map discovery, digital QR gate passes, 1-click time extensions, and automated booking recovery protection if a reserved spot is blocked.
+        </div>
+      </div>
+      <div class="card card-highlight">
+        <div class="card-title">🏡 For Homeowners & Space Hosts</div>
+        <div class="card-desc">
+          Automated Smart Space Sharing monetization during idle workday hours (e.g., Mon–Fri 8:30 AM – 5:30 PM), dynamic pricing surge recommendations, draft listing wizards, and complete calendar control.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 2: THE 5 PILLAR DIFFERENTIATORS -->
+  <div class="section-block">
+    <h2>2. The 5 Core Architectural Differentiators</h2>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">1. Vehicle Clearance & Compatibility Engine</div>
+        <div class="card-desc">
+          Unlike generic directories, ParkMate checks vehicle heights, lengths, and widths against garage specs. Low-clearance bays display instant warnings (e.g., <em>"Exceeds 6.8 ft ceiling limit"</em>) and safely disable booking to prevent vehicle damage.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">2. Guaranteed Booking Recovery Failover</div>
+        <div class="card-desc">
+          If a driver arrives and finds a space occupied, blocked, or the gate code inoperable, 1-click recovery scans nearby spaces within walking distance, checks vehicle compatibility, and reallocates an equal/upgraded spot at <strong>$0 extra charge</strong> (or issues 100% refund + credit).
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">3. FlexPark 1-Click Extensions</div>
+        <div class="card-desc">
+          Drivers running behind schedule can extend reservations (+30m, +1h, +2h) on the fly. The server validates subsequent driver bookings in real-time, executing extensions instantly with zero overlapping conflicts.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">4. Smart Space Sharing (Commute Monetization)</div>
+        <div class="card-desc">
+          Residential hosts monetize driveway downtime during work hours (e.g., Mon–Fri 8:30 AM – 5:30 PM) while keeping the spot reserved for their own car in the evening. The engine analyzes calendar gaps and suggests 1-click publishable slots.
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top: 4px;">
+      <div class="card-title">5. Explainable Demand Prediction & Dynamic Pricing AI</div>
+      <div class="card-desc">
+        A deterministic heuristic model analyzing neighborhood density, rush-hour commuter surges, weekend patterns, and local events to forecast demand scores (0–100) with full transparency, accompanied by an interactive pricing simulator for hosts.
+      </div>
+    </div>
+  </div>
+
+  <!-- PAGE BREAK -->
+  <div class="page-break"></div>
+
+  <!-- SECTION 3: FEATURES ADDED -->
+  <div class="section-block">
+    <h2>3. Comprehensive List of Features Implemented</h2>
+
+    <div class="table-container">
+      <table>
+        <thead>
+          <tr>
+            <th style="width: 22%;">Module / Domain</th>
+            <th style="width: 38%;">Feature Description</th>
+            <th style="width: 20%;">Key Capabilities</th>
+            <th style="width: 20%;">Technical Route</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Discovery & Search</strong></td>
+            <td>Split list and map view with real-time vector price pins, vehicle selector, and category filters.</td>
+            <td>
+              <span class="tag tag-blue">Vector Map</span>
+              <span class="tag tag-purple">Clearance Filter</span>
+              <span class="tag tag-green">EV / Covered</span>
+            </td>
+            <td><code>/search</code><br><code>/api/search</code></td>
+          </tr>
+          <tr>
+            <td><strong>Vehicle Clearance Gate</strong></td>
+            <td>Hard checks for vehicle dimensions (compact, sedan, SUV, van, truck, EV) against garage heights.</td>
+            <td>
+              <span class="tag tag-amber">Damage Prevention</span>
+              <span class="tag tag-blue">Custom Dimensions</span>
+            </td>
+            <td><code>compatibility-engine.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Listing Details & Gating</strong></td>
+            <td>High-res photo carousel, host trust metrics, walkability scores, and server-side calculated price quote.</td>
+            <td>
+              <span class="tag tag-green">Privacy Gating</span>
+              <span class="tag tag-purple">Tamper-Proof Price</span>
+            </td>
+            <td><code>/listings/[id]</code></td>
+          </tr>
+          <tr>
+            <td><strong>Digital Pass & Bookings</strong></td>
+            <td>Driver wallet showing confirmed reservations, QR access passes, 4-digit gate PINs, and direct map navigation.</td>
+            <td>
+              <span class="tag tag-blue">QR Code Pass</span>
+              <span class="tag tag-green">Gate Access PIN</span>
+            </td>
+            <td><code>/bookings</code><br><code>/api/bookings</code></td>
+          </tr>
+          <tr>
+            <td><strong>FlexPark Extensions</strong></td>
+            <td>One-tap reservation extension with automated conflict detection against subsequent bookings.</td>
+            <td>
+              <span class="tag tag-blue">+1h / +2h Ext</span>
+              <span class="tag tag-green">Zero Conflict</span>
+            </td>
+            <td><code>/api/bookings/[id]/extend</code></td>
+          </tr>
+          <tr>
+            <td><strong>Booking Recovery</strong></td>
+            <td>Arrival failover engine that reallocates nearby compatible spaces if a reserved bay is blocked.</td>
+            <td>
+              <span class="tag tag-amber">Auto-Reallocation</span>
+              <span class="tag tag-purple">$0 Upgrade</span>
+            </td>
+            <td><code>/api/recovery</code><br><code>recovery-engine.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Host Hub & Smart Sharing</strong></td>
+            <td>Owner dashboard tracking listed vs booked hours, space utilization %, and verified vs potential revenue.</td>
+            <td>
+              <span class="tag tag-green">Utilization %</span>
+              <span class="tag tag-blue">Slot Recommender</span>
+            </td>
+            <td><code>/owner</code><br><code>/api/owner/overview</code></td>
+          </tr>
+          <tr>
+            <td><strong>Dynamic Pricing Simulator</strong></td>
+            <td>Interactive tool for hosts to test how day, hour, and local events shift demand scores and suggested pricing.</td>
+            <td>
+              <span class="tag tag-purple">Surge Simulator</span>
+              <span class="tag tag-amber">Event Modifiers</span>
+            </td>
+            <td><code>demand-engine.ts</code></td>
+          </tr>
+          <tr>
+            <td><strong>Listing Creator Wizard</strong></td>
+            <td>4-step listing wizard with draft autosave, physical dimension inputs, and photo upload.</td>
+            <td>
+              <span class="tag tag-blue">Multi-Step</span>
+              <span class="tag tag-green">Storage Bucket</span>
+            </td>
+            <td><code>/owner/new-listing</code><br><code>/api/storage/upload</code></td>
+          </tr>
+          <tr>
+            <td><strong>Saved Spaces</strong></td>
+            <td>Bookmark favorite spaces with real-time sync across search cards and user profile.</td>
+            <td>
+              <span class="tag tag-blue">Wishlist</span>
+              <span class="tag tag-green">Instant Toggle</span>
+            </td>
+            <td><code>/api/saved-spaces</code></td>
+          </tr>
+          <tr>
+            <td><strong>Idempotent Test Gateway</strong></td>
+            <td>Safe simulation of credit card authorizations, card declines, and instant refund ledgers.</td>
+            <td>
+              <span class="tag tag-purple">Idempotent</span>
+              <span class="tag tag-green">Audit Trail</span>
+            </td>
+            <td><code>payment-engine.ts</code></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- SECTION 4: ARCHITECTURE & BACKEND ENGINES -->
+  <div class="section-block">
+    <h2>4. Backend Engines & Database Architecture</h2>
+    <p>
+      The core logic of ParkMate is decoupled into specialized domain engines located in <code>src/lib/</code>:
+    </p>
+
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-title">booking-engine.ts</div>
+        <div class="card-desc">
+          State machine transitions (<code>pending</code> &rarr; <code>confirmed</code> &rarr; <code>active</code> &rarr; <code>completed</code> / <code>cancelled</code> / <code>recovered</code>), atomic conflict detection, and tamper-resistant price calculations.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">compatibility-engine.ts</div>
+        <div class="card-desc">
+          Multi-axis dimension matching (height, length, width, side clearance) with safety margins (4 inches vertical, 6 inches horizontal) across 6 vehicle classes.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">recovery-engine.ts</div>
+        <div class="card-desc">
+          Automated failover protocol. Discovers nearest compatible spaces within walking radius, calculates walking times, and waives price differences.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">demand-engine.ts</div>
+        <div class="card-desc">
+          Deterministic surge score engine (0–100) combining base neighborhood density, temporal rush hours (7–9 AM, 4–7 PM), and event flags.
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">slot-recommendation.ts</div>
+        <div class="card-desc">
+          Gap analysis scanning owner recurring availability vs bookings to highlight unmonetized peak slots (e.g. Tuesday morning commute).
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">payment-engine.ts</div>
+        <div class="card-desc">
+          Idempotent payment transaction orchestrator. Generates payment references, handles test card declines, and manages refund events.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SECTION 5: SECURITY & INTEGRITY -->
+  <div class="section-block">
+    <h2>5. Security, Concurrency & Data Integrity</h2>
+    <ul>
+      <li><strong>PostgreSQL Exclusion Constraints:</strong> <code>EXCLUDE USING gist (space_id WITH =, tstzrange(start_time, end_time) WITH &amp;&amp;)</code> strictly prevents double bookings at the database engine level.</li>
+      <li><strong>Row Level Security (RLS):</strong> Supabase policies ensure hosts only edit their own spaces and drivers only access their own reservations.</li>
+      <li><strong>Rate Limiting:</strong> In-memory sliding-window token bucket limiter protecting sensitive reservation and recovery routes.</li>
+      <li><strong>MIME & File Sanitization:</strong> Image uploads checked against a strict whitelist (JPEG, PNG, WebP) with a 5MB limit and randomized storage paths.</li>
+      <li><strong>Address & PIN Privacy:</strong> Exact addresses and gate PIN codes are stripped from search and listing endpoints until a booking is verified.</li>
+    </ul>
+  </div>
+
+  <!-- FOOTER -->
+  <div class="footer">
+    <span>ParkMate Architecture & Prototype Overview • Prepared for Judges & Technical Audit</span>
+    <span>Document Generated October 2026</span>
+  </div>
+
+</body>
+</html>

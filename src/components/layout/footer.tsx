@@ -109,9 +109,9 @@ export function Footer() {
 
           <div className="flex items-center gap-6 font-semibold text-[#222222]">
             <span className="flex items-center gap-1.5 cursor-pointer hover:underline">
-              <Globe className="h-4 w-4" /> English (US)
+              <Globe className="h-4 w-4" /> English (IN)
             </span>
-            <span className="cursor-pointer hover:underline">$ USD</span>
+            <span className="cursor-pointer hover:underline">₹ INR</span>
           </div>
         </div>
       </div>
