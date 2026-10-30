@@ -9,7 +9,7 @@ import {
   Ruler,
   Zap,
   Camera,
-  DollarSign,
+  IndianRupee,
   Calendar,
   CheckCircle2,
   AlertCircle,
@@ -1154,7 +1154,7 @@ function WizardContent() {
           <div className="bg-white rounded-3xl p-6 sm:p-8 border border-neutral-200 shadow-xs space-y-6">
             <div>
               <h2 className="text-lg font-bold text-[#222222] flex items-center gap-2">
-                <DollarSign className="w-5 h-5 text-neutral-900" />
+                <IndianRupee className="w-5 h-5 text-neutral-900" />
                 Hourly, Daily and Monthly Pricing
               </h2>
               <p className="text-xs text-neutral-500 mt-1">
@@ -1165,21 +1165,21 @@ function WizardContent() {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="p-5 rounded-2xl border border-neutral-200 space-y-2">
                 <span className="text-xs font-bold text-neutral-500 uppercase tracking-wider">
-                  Hourly Rate ($/hr) *
+                  Hourly Rate (₹/hr) *
                 </span>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-neutral-400 font-bold">$</span>
+                  <span className="absolute left-3 top-2.5 text-neutral-400 font-bold">₹</span>
                   <Input
                     type="number"
-                    step="0.25"
+                    step="1"
                     value={pricePerHour}
                     onChange={(e) => {
                       const val = e.target.value;
                       setPricePerHour(val);
                       const num = parseFloat(val);
                       if (num > 0) {
-                        setPricePerDay((num * 6.5).toFixed(2));
-                        setPricePerMonth((num * 55).toFixed(2));
+                        setPricePerDay((num * 6.5).toFixed(0));
+                        setPricePerMonth((num * 55).toFixed(0));
                       }
                     }}
                     className={`pl-8 text-lg font-bold ${stepErrors.pricePerHour ? "border-rose-500" : ""}`}
@@ -1192,13 +1192,13 @@ function WizardContent() {
 
               <div className="p-5 rounded-2xl border border-neutral-200 space-y-2">
                 <span className="text-xs font-bold text-neutral-500 uppercase tracking-wider">
-                  Daily Cap ($/day) *
+                  Daily Cap (₹/day) *
                 </span>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-neutral-400 font-bold">$</span>
+                  <span className="absolute left-3 top-2.5 text-neutral-400 font-bold">₹</span>
                   <Input
                     type="number"
-                    step="1.00"
+                    step="5"
                     value={pricePerDay}
                     onChange={(e) => setPricePerDay(e.target.value)}
                     className="pl-8 text-lg font-bold"
@@ -1209,13 +1209,13 @@ function WizardContent() {
 
               <div className="p-5 rounded-2xl border border-neutral-200 space-y-2">
                 <span className="text-xs font-bold text-neutral-500 uppercase tracking-wider">
-                  Monthly Commuter Pass ($/mo)
+                  Monthly Commuter Pass (₹/mo)
                 </span>
                 <div className="relative">
-                  <span className="absolute left-3 top-2.5 text-neutral-400 font-bold">$</span>
+                  <span className="absolute left-3 top-2.5 text-neutral-400 font-bold">₹</span>
                   <Input
                     type="number"
-                    step="5.00"
+                    step="50"
                     value={pricePerMonth}
                     onChange={(e) => setPricePerMonth(e.target.value)}
                     className="pl-8 text-lg font-bold"
@@ -1443,7 +1443,7 @@ function WizardContent() {
                     )}
                   </div>
                   <div className="pt-2 text-sm font-extrabold text-neutral-900">
-                    ${pricePerHour} <span className="text-xs font-normal text-neutral-500">/ hour</span> &bull; ${pricePerDay} <span className="text-xs font-normal text-neutral-500">/ day</span>
+                    ₹{pricePerHour} <span className="text-xs font-normal text-neutral-500">/ hour</span> &bull; ₹{pricePerDay} <span className="text-xs font-normal text-neutral-500">/ day</span>
                   </div>
                 </div>
               </div>

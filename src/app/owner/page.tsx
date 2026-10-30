@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   TrendingUp,
-  DollarSign,
+  IndianRupee,
   Plus,
   ToggleLeft,
   ToggleRight,
@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { ParkingImage } from "@/components/ui/parking-image";
 import { useAuth } from "@/lib/auth-context";
 import { ParkingSpace } from "@/types/parking";
+import { formatCurrency } from "@/lib/utils";
 import {
   UnusedSlotRecommendation,
   OwnerUtilizationStats,
@@ -780,11 +781,11 @@ export default function OwnerDashboardPage() {
             <div className="flex items-center justify-between text-[#717171] mb-2 text-xs font-bold uppercase tracking-wider">
               <span>Gross Host Earnings</span>
               <div className="h-8 w-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <DollarSign className="h-4 w-4" />
+                <IndianRupee className="h-4 w-4" />
               </div>
             </div>
             <p className="text-3xl font-extrabold text-[#222222]">
-              ${stats.totalEarnings.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(stats.totalEarnings)}
             </p>
             <p className="text-xs text-emerald-600 font-semibold flex items-center gap-1 mt-2">
               <ArrowUpRight className="h-3.5 w-3.5" /> Verified paid reservations
@@ -799,7 +800,7 @@ export default function OwnerDashboardPage() {
               </div>
             </div>
             <p className="text-3xl font-extrabold text-[#222222]">
-              ${stats.pendingPayout.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+              {formatCurrency(stats.pendingPayout)}
             </p>
             <p className="text-xs text-blue-600 font-semibold flex items-center gap-1 mt-2">
               <Clock className="h-3.5 w-3.5" /> Active &amp; upcoming bookings
@@ -984,20 +985,20 @@ export default function OwnerDashboardPage() {
                         <div className="pt-2 border-t border-neutral-100 flex items-center justify-between text-xs">
                           <div>
                             <span className="font-black text-sm text-[#222222]">
-                              ${space.pricePerHour.toFixed(2)}
+                              {formatCurrency(space.pricePerHour)}
                             </span>
                             <span className="text-neutral-500 font-normal"> / hr</span>
                           </div>
                           <div>
                             <span className="font-black text-sm text-[#222222]">
-                              ${space.pricePerDay.toFixed(2)}
+                              {formatCurrency(space.pricePerDay)}
                             </span>
                             <span className="text-neutral-500 font-normal"> / day</span>
                           </div>
                           {space.pricePerMonth && (
                             <div>
                               <span className="font-black text-sm text-[#222222]">
-                                ${space.pricePerMonth.toFixed(2)}
+                                {formatCurrency(space.pricePerMonth)}
                               </span>
                               <span className="text-neutral-500 font-normal"> / mo</span>
                             </div>
@@ -1186,7 +1187,7 @@ export default function OwnerDashboardPage() {
                     Actual Realized Gross Bookings:
                   </span>
                   <span className="text-3xl sm:text-4xl font-black text-neutral-900">
-                    ${(utilizationStats?.verifiedActualGrossBookings ?? stats.totalEarnings).toFixed(2)}
+                    {formatCurrency(utilizationStats?.verifiedActualGrossBookings ?? stats.totalEarnings)}
                   </span>
                 </div>
 
@@ -1212,7 +1213,7 @@ export default function OwnerDashboardPage() {
                     Total Estimated Potential Value:
                   </span>
                   <span className="text-3xl sm:text-4xl font-black text-purple-700">
-                    ${(utilizationStats?.projectedPotentialGrossBookings ?? (stats.totalEarnings + 240)).toFixed(2)}
+                    {formatCurrency(utilizationStats?.projectedPotentialGrossBookings ?? (stats.totalEarnings + 1500))}
                   </span>
                 </div>
 
@@ -1298,17 +1299,17 @@ export default function OwnerDashboardPage() {
                           <div>
                             <span className="text-[10px] text-neutral-500 font-bold block">Suggested Hourly Rate:</span>
                             <div className="flex items-baseline gap-1 mt-0.5">
-                              <span className="text-base font-black text-neutral-900">${rec.suggestedHourlyPrice.toFixed(2)}</span>
-                              <span className="text-[11px] text-neutral-400 line-through">${rec.baselineHourlyPrice.toFixed(2)}</span>
+                              <span className="text-base font-black text-neutral-900">{formatCurrency(rec.suggestedHourlyPrice)}</span>
+                              <span className="text-[11px] text-neutral-400 line-through">{formatCurrency(rec.baselineHourlyPrice)}</span>
                             </div>
                             <span className="text-[10px] text-purple-700 font-medium block">{rec.pricingRuleApplied}</span>
                           </div>
 
                           <div>
                             <span className="text-[10px] text-neutral-500 font-bold block">Estimated Additional Earnings:</span>
-                            <span className="text-base font-black text-emerald-700 block mt-0.5">+${rec.estimatedHostEarnings.toFixed(2)}</span>
+                            <span className="text-base font-black text-emerald-700 block mt-0.5">+{formatCurrency(rec.estimatedHostEarnings)}</span>
                             <span className="text-[10px] text-neutral-500 font-medium block">
-                              Potential gross: ${rec.potentialGrossBookingValue.toFixed(2)}
+                              Potential gross: {formatCurrency(rec.potentialGrossBookingValue)}
                             </span>
                           </div>
                         </div>
@@ -1611,18 +1612,18 @@ export default function OwnerDashboardPage() {
               {/* Hourly Rate Customization */}
               <div>
                 <label className="block font-bold text-neutral-800 mb-1">
-                  Approved Price Per Hour ($):
+                  Approved Price Per Hour (₹):
                 </label>
                 <input
                   type="number"
-                  step="0.25"
-                  min="1.0"
+                  step="1"
+                  min="1"
                   value={customPrice}
                   onChange={(e) => setCustomPrice(e.target.value)}
                   className="w-full text-xs font-extrabold rounded-xl border border-neutral-300 p-2.5 bg-white focus:outline-none"
                 />
                 <p className="text-[10px] text-neutral-500 mt-1">
-                  Engine suggested ${approvingRec.suggestedHourlyPrice.toFixed(2)}/hr based on {approvingRec.estimatedDemandLevel} demand.
+                  Engine suggested {formatCurrency(approvingRec.suggestedHourlyPrice)}/hr based on {approvingRec.estimatedDemandLevel} demand.
                 </p>
               </div>
 
@@ -1883,7 +1884,7 @@ export default function OwnerDashboardPage() {
                       </div>
 
                       <div className="text-xs font-extrabold text-emerald-600">
-                        Host Payout: ${booking.hostPayout.toFixed(2)}
+                        Host Payout: {formatCurrency(booking.hostPayout)}
                       </div>
                     </div>
 
@@ -2256,11 +2257,11 @@ export default function OwnerDashboardPage() {
                   <p className="text-xs font-bold text-[#222222]">Upcoming Local Catalysts:</p>
                   <div className="space-y-1.5 text-xs text-[#717171]">
                     <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-[#EAEAEA]">
-                      <span>Chase Center: Warriors vs Celtics</span>
+                      <span>MCA Stadium: IPL Cricket Match</span>
                       <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded text-[10px]">Tomorrow 7:30 PM (+35%)</span>
                     </div>
                     <div className="flex justify-between items-center bg-white p-2.5 rounded-xl border border-[#EAEAEA]">
-                      <span>Moscone Tech Summit (12k attendees)</span>
+                      <span>Hinjawadi IT Summit &amp; Expo</span>
                       <span className="font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded text-[10px]">Thu - Fri (+45%)</span>
                     </div>
                   </div>
@@ -2269,7 +2270,7 @@ export default function OwnerDashboardPage() {
 
               <div className="flex items-center justify-between text-xs pt-2">
                 <span className="text-[#717171]">Recommended Price:</span>
-                <span className="font-extrabold text-base text-[#222222]">$7.50 &rarr; $10.50/hr</span>
+                <span className="font-extrabold text-base text-[#222222]">₹50 &rarr; ₹75/hr</span>
               </div>
             </div>
           </div>
@@ -2285,10 +2286,10 @@ export default function OwnerDashboardPage() {
       >
         <form onSubmit={handleSavePriceEdit} className="space-y-4 text-xs">
           <div>
-            <label className="block font-bold text-[#222222] mb-1">Hourly Rate ($/hr) *</label>
+            <label className="block font-bold text-[#222222] mb-1">Hourly Rate (₹/hr) *</label>
             <Input
               type="number"
-              step="0.25"
+              step="1"
               required
               value={editPricePerHour}
               onChange={(e) => setEditPricePerHour(e.target.value)}
@@ -2296,10 +2297,10 @@ export default function OwnerDashboardPage() {
           </div>
 
           <div>
-            <label className="block font-bold text-[#222222] mb-1">Daily Cap Rate ($/day) *</label>
+            <label className="block font-bold text-[#222222] mb-1">Daily Cap Rate (₹/day) *</label>
             <Input
               type="number"
-              step="1.00"
+              step="5"
               required
               value={editPricePerDay}
               onChange={(e) => setEditPricePerDay(e.target.value)}
@@ -2307,10 +2308,10 @@ export default function OwnerDashboardPage() {
           </div>
 
           <div>
-            <label className="block font-bold text-[#222222] mb-1">Monthly Commuter Pass ($/mo)</label>
+            <label className="block font-bold text-[#222222] mb-1">Monthly Commuter Pass (₹/mo)</label>
             <Input
               type="number"
-              step="5.00"
+              step="50"
               value={editPricePerMonth}
               onChange={(e) => setEditPricePerMonth(e.target.value)}
             />

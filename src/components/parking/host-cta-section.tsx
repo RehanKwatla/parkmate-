@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowRight, DollarSign, Calendar, ShieldCheck, KeyRound } from "lucide-react";
+import { ArrowRight, IndianRupee, Calendar, ShieldCheck, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
 export function HostCtaSection() {
@@ -14,13 +14,13 @@ export function HostCtaSection() {
           <div className="relative z-10 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 text-[#FF5A5F] text-xs font-bold mb-4 backdrop-blur-xs">
-                Earn Up to $450/month per spot
+                Earn Up to ₹15,000/month per spot
               </span>
               <h2 className="text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight leading-tight">
                 Turn your unused driveway or garage into effortless passive income.
               </h2>
               <p className="mt-4 text-neutral-300 text-base sm:text-lg leading-relaxed">
-                Whether you commute to work daily or have a spare commercial parking bay, ParkMate lets you monetize exact hours with automated access and $1,000,000 protection.
+                Whether you commute to work daily or have a spare commercial parking bay, ParkMate lets you monetize exact hours with automated access and ₹10,00,000 protection.
               </p>
 
               <div className="mt-8 flex flex-wrap gap-4">
@@ -52,7 +52,7 @@ export function HostCtaSection() {
 
               <div className="rounded-2xl bg-white/5 border border-white/10 p-5 backdrop-blur-xs">
                 <div className="h-10 w-10 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-bold mb-3">
-                  <DollarSign className="h-5 w-5" />
+                  <IndianRupee className="h-5 w-5" />
                 </div>
                 <h4 className="font-bold text-base mb-1">2. Dynamic Surge Pricing</h4>
                 <p className="text-xs text-neutral-400">

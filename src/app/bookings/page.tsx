@@ -1050,7 +1050,7 @@ export default function BookingsPage() {
 
                               <div className="text-right shrink-0">
                                 <span className="text-[11px] font-extrabold text-neutral-900 block">
-                                  $0.00 Extra
+                                  ₹0 Extra
                                 </span>
                                 <span className="text-[9px] text-emerald-600 font-bold bg-emerald-50 px-1.5 py-0.5 rounded-md">
                                   Price Matched
@@ -1090,7 +1090,7 @@ export default function BookingsPage() {
                         className="text-[11px] font-semibold text-neutral-500 hover:text-neutral-800"
                         disabled={isSubmittingReport}
                       >
-                        None of these work? Request 100% Instant Refund + $15 Credit
+                        None of these work? Request 100% Instant Refund + ₹500 Credit
                       </button>
                     </div>
                   </>
@@ -1118,7 +1118,7 @@ export default function BookingsPage() {
                       </p>
                       <ul className="text-[11px] list-disc list-inside space-y-1 font-semibold">
                         <li>100% Immediate refund of your reservation fee</li>
-                        <li>$15.00 Inconvenience credit added to your account</li>
+                        <li>₹500 Inconvenience credit added to your account</li>
                         <li>24/7 Priority support agent dispatch</li>
                       </ul>
                     </div>
@@ -1145,7 +1145,7 @@ export default function BookingsPage() {
                 <div className="space-y-1">
                   <h4 className="font-bold text-base text-neutral-900">Replacement Space Confirmed!</h4>
                   <p className="text-xs text-neutral-600">
-                    Your reservation has been transferred to {confirmedSpace.title} at $0.00 fee.
+                    Your reservation has been transferred to {confirmedSpace.title} at ₹0 fee.
                   </p>
                 </div>
 
@@ -1193,7 +1193,7 @@ export default function BookingsPage() {
                   </div>
                   <div className="flex justify-between">
                     <span className="text-neutral-500 font-sans">ParkMate Credit:</span>
-                    <span className="font-bold text-emerald-600">+$15.00 Credit</span>
+                    <span className="font-bold text-emerald-600">+₹500 Credit</span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-neutral-500 font-sans">Support Ticket:</span>

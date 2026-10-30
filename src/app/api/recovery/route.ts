@@ -247,9 +247,9 @@ export async function POST(request: Request) {
         cancellationPolicy: {
           eligibleForImmediateRefund: true,
           refundAmount: totalPrice,
-          inconvenienceCredit: 15.00,
+          inconvenienceCredit: 500.00,
           resolutionNote:
-            "If none of these alternatives work for you, you can request an instant 100% refund plus $15 inconvenience credit.",
+            "If none of these alternatives work for you, you can request an instant 100% refund plus ₹500 inconvenience credit.",
         },
         message:
           alternatives.length > 0
@@ -439,7 +439,7 @@ export async function POST(request: Request) {
         replacementSpace,
         newAccessCode,
         message:
-          "Replacement parking space confirmed at $0.00 additional charge under ParkMate Booking Recovery Protection.",
+          "Replacement parking space confirmed at ₹0 additional charge under ParkMate Booking Recovery Protection.",
       });
     }
 

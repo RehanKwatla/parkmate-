@@ -49,7 +49,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <span className="text-[#999999] cursor-not-allowed">$1,000,000 Property Damage Protection</span>
+                <span className="text-[#999999] cursor-not-allowed">₹10,00,000 Property Damage Protection</span>
               </li>
               <li>
                 <span className="text-[#999999] cursor-not-allowed">Host Community Forum</span>
